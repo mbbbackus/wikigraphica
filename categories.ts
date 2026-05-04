@@ -552,6 +552,22 @@ export function getCategoryColor(key: string | null | undefined): string | undef
   return undefined;
 }
 
+// Build the full style brief for a category — sub-types get the parent's
+// detailed editorial direction PLUS their own subject-specific addendum,
+// so the image model receives the most-specific guidance available.
+export function getCategoryStyle(key: string | null | undefined): string | undefined {
+  if (!key) return undefined;
+  const c = CATEGORY_BY_KEY[key];
+  if (!c) return undefined;
+  if (c.parent) {
+    const parent = CATEGORY_BY_KEY[c.parent];
+    if (parent && parent.style) {
+      return `${parent.style}\n\nSubject-specific direction (${c.label}): ${c.style}`;
+    }
+  }
+  return c.style;
+}
+
 export function getParentKey(key: string): string {
   const c = CATEGORY_BY_KEY[key];
   return c?.parent ?? c?.key ?? key;

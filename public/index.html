@@ -429,6 +429,7 @@
         gap: 24px;
         margin-bottom: 32px;
       }
+      .results-structured .lead-wrap { position: relative; }
       .results-structured .lead-overview {
         border: var(--bw) solid #000;
         box-shadow: var(--shadow-lg);
@@ -438,6 +439,34 @@
         cursor: zoom-in;
         position: relative;
         display: block;
+      }
+      .results-structured .lead-versions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 12px;
+        font-size: 13px;
+      }
+      .results-structured .lead-versions .v-info {
+        font-weight: 600;
+      }
+      .results-structured .lead-versions .v-meta {
+        color: var(--muted);
+        font-weight: 400;
+      }
+      .results-structured .lead-versions button {
+        padding: 6px 10px;
+        font-size: 13px;
+        font-weight: 700;
+        background: #000;
+        color: white;
+        border: 3px solid #000;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .results-structured .lead-versions button:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
       }
       .results-structured .lead-regen-badge {
         position: absolute;
@@ -896,6 +925,19 @@
 
       const resultsStructuredEl = $("results-structured");
       const openSections = new Set();
+      let lastStructureData = null;
+      let lastStructureUrl = null;
+      let leadIndex = 0;
+      let leadIndexUrl = null;
+      function changeLead(delta) {
+        if (!lastStructureData) return;
+        const dones = (lastStructureData.overview_infographics || []).filter(
+          (i) => i.status === "done" && i.image_url,
+        );
+        if (dones.length < 2) return;
+        leadIndex = Math.max(0, Math.min(dones.length - 1, leadIndex + delta));
+        renderStructuredResults(lastStructureData, lastStructureUrl);
+      }
       resultsStructuredEl.addEventListener(
         "toggle",
         (e) => {
@@ -912,11 +954,14 @@
       function renderStructuredResults(data, fallbackUrl) {
         const overviews = data.overview_infographics || [];
         const sections = data.sections || [];
-        // Show the latest overview (regardless of status) so a regenerate
-        // immediately reflects on the page as a "Generating…" placeholder.
-        const lead = overviews[0];
+        const dones = overviews.filter(
+          (i) => i.status === "done" && i.image_url,
+        );
         const latestPending = overviews.find((i) => i.status === "pending");
-        const latestDone = overviews.find((i) => i.status === "done");
+        const latestDone = dones[0];
+        if (leadIndex >= dones.length) leadIndex = 0;
+        const selectedDone = dones[leadIndex] ?? null;
+        const lead = selectedDone || overviews[0];
         const overviewCategory = overviews.find((i) => i.category)?.category;
         const parentCat = parentOf(overviewCategory) ?? overviewCategory;
         const pageIcon = CATEGORY_META[parentCat]?.icon || "note";
@@ -927,27 +972,43 @@
           "Result";
         const fallbackDesc = data.page?.wiki_description || lead?.wiki_description || "";
 
-        // If a regenerate is in flight, keep the previous done image visible
-        // with a "regenerating" badge stacked on top.
-        let leadHtml;
-        if (latestPending && latestDone && latestDone.image_url) {
-          leadHtml = `<a class="lead-overview lead-regenerating" data-img="${escape(latestDone.image_url)}">
-                       <img src="${escape(latestDone.image_url)}" alt="${escape(fallbackTitle)}" />
-                       <div class="lead-regen-badge"><span class="spinner"></span>Regenerating…</div>
-                     </a>`;
-        } else if (lead && lead.image_url) {
-          leadHtml = `<a class="lead-overview" data-img="${escape(lead.image_url)}">
-                       <img src="${escape(lead.image_url)}" alt="${escape(fallbackTitle)}" />
-                     </a>`;
+        // Lead image: always use the SELECTED done overview (carousel position).
+        // Show a "Regenerating…" badge on top whenever there's an in-flight gen.
+        let leadInner;
+        if (selectedDone) {
+          leadInner = `<a class="lead-overview" data-img="${escape(selectedDone.image_url)}">
+                        <img src="${escape(selectedDone.image_url)}" alt="${escape(fallbackTitle)}" />
+                        ${latestPending ? `<div class="lead-regen-badge"><span class="spinner"></span>Regenerating…</div>` : ""}
+                      </a>`;
         } else {
-          leadHtml = `<div class="lead-overview"><div class="placeholder">${
-            lead && lead.status === "pending"
+          leadInner = `<div class="lead-overview"><div class="placeholder">${
+            latestPending
               ? '<span class="spinner"></span>Generating overview…'
               : lead && lead.status === "error"
               ? "Overview failed"
               : "No overview yet — paste a URL above to make one."
           }</div></div>`;
         }
+
+        // Carousel controls + version chip if there are multiple done overviews.
+        let versionsHtml = "";
+        if (dones.length > 1) {
+          const cur = dones[leadIndex];
+          const cat = cur?.category || "default";
+          const dateStr = cur?.created_at
+            ? new Date(cur.created_at).toLocaleString(undefined, {
+                month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+              })
+            : "";
+          versionsHtml = `
+            <div class="lead-versions">
+              <button class="lead-prev" ${leadIndex >= dones.length - 1 ? "disabled" : ""}>←</button>
+              <span class="v-info">Version ${leadIndex + 1} of ${dones.length}</span>
+              <button class="lead-next" ${leadIndex <= 0 ? "disabled" : ""}>→</button>
+              <span class="v-meta">${escape(cat)} · ${escape(dateStr)}</span>
+            </div>`;
+        }
+        const leadHtml = `<div class="lead-wrap">${leadInner}${versionsHtml}</div>`;
 
         // Prefer the generated infobox infographic image. Fall back to raw KV list.
         const infoboxSection = sections.find((s) => s.kind === "infobox");
@@ -1049,6 +1110,12 @@
           const d = await r.json();
           if (!r.ok) throw new Error(d.error || "failed");
 
+          lastStructureData = d;
+          lastStructureUrl = wikiUrl;
+          if (leadIndexUrl !== wikiUrl) {
+            leadIndex = 0;
+            leadIndexUrl = wikiUrl;
+          }
           renderStructuredResults(d, wikiUrl);
           resultsStructuredEl.hidden = false;
           resultsEl.hidden = true;
@@ -1070,6 +1137,16 @@
       }
 
       resultsStructuredEl.addEventListener("click", (e) => {
+        if (e.target.closest(".lead-prev")) {
+          e.preventDefault();
+          changeLead(1); // older
+          return;
+        }
+        if (e.target.closest(".lead-next")) {
+          e.preventDefault();
+          changeLead(-1); // newer
+          return;
+        }
         const el = e.target.closest("[data-img]");
         if (!el) return;
         e.preventDefault();

@@ -21,7 +21,13 @@ import {
   IMAGE_SIZE,
   generateImage,
 } from "./openai";
-import { CATEGORIES, CATEGORY_BY_KEY, classify, getCategoryColor } from "./categories";
+import {
+  CATEGORIES,
+  CATEGORY_BY_KEY,
+  classify,
+  getCategoryColor,
+  getCategoryStyle,
+} from "./categories";
 
 const PORT = Number(process.env.PORT ?? 3939);
 const IMAGES_DIR = "data/images";
@@ -93,7 +99,7 @@ async function processInBackground(
         extract: summary.extract,
       });
     }
-    const style = categoryKey ? CATEGORY_BY_KEY[categoryKey].style : undefined;
+    const style = getCategoryStyle(categoryKey);
 
     // 1. Generate the overview infographic (the request the worker is polling).
     const overviewPrompt = buildPrompt(summary, style);
