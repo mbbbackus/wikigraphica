@@ -30,12 +30,37 @@ db.exec(`
   create index if not exists infographics_url_idx on infographics(wiki_url);
   create index if not exists infographics_recent_idx on infographics(created_at desc);
   create index if not exists infographics_status_idx on infographics(status);
+
+  create table if not exists wiki_pages (
+    id text primary key,
+    wiki_url text not null unique,
+    wiki_title text not null,
+    wiki_lang text not null,
+    wiki_description text,
+    wiki_extract text,
+    infobox_json text,
+    created_at integer not null
+  );
+
+  create table if not exists wiki_sections (
+    id text primary key,
+    page_id text not null references wiki_pages(id) on delete cascade,
+    section_index integer not null,
+    kind text not null,
+    title text,
+    level integer,
+    text_body text,
+    created_at integer not null
+  );
+  create index if not exists wiki_sections_page_idx on wiki_sections(page_id, section_index);
 `);
 
 const cols = db.query<{ name: string }, []>("pragma table_info(infographics)").all();
-if (!cols.some((c) => c.name === "category")) {
-  db.exec("alter table infographics add column category text");
-}
+const colNames = new Set(cols.map((c) => c.name));
+if (!colNames.has("category")) db.exec("alter table infographics add column category text");
+if (!colNames.has("page_id")) db.exec("alter table infographics add column page_id text");
+if (!colNames.has("section_id")) db.exec("alter table infographics add column section_id text");
+if (!colNames.has("kind")) db.exec("alter table infographics add column kind text");
 
 export type Infographic = {
   id: string;
@@ -54,6 +79,31 @@ export type Infographic = {
   error: string | null;
   created_at: number;
   completed_at: number | null;
+  page_id: string | null;
+  section_id: string | null;
+  kind: string | null;
+};
+
+export type WikiPage = {
+  id: string;
+  wiki_url: string;
+  wiki_title: string;
+  wiki_lang: string;
+  wiki_description: string | null;
+  wiki_extract: string | null;
+  infobox_json: string | null;
+  created_at: number;
+};
+
+export type WikiSection = {
+  id: string;
+  page_id: string;
+  section_index: number;
+  kind: string; // 'infobox' | 'section'
+  title: string | null;
+  level: number | null;
+  text_body: string | null;
+  created_at: number;
 };
 
 export type InfographicView = Infographic & { image_url: string | null };
@@ -68,6 +118,41 @@ export function viewInfographic(row: Infographic): InfographicView {
 export const queries = {
   insertInfographic: db.prepare<unknown, [string, string, number]>(
     "insert into infographics (id, wiki_url, created_at) values (?, ?, ?)",
+  ),
+  insertInfographicForSection: db.prepare<
+    unknown,
+    [string, string, string, string, string, number]
+  >(
+    "insert into infographics (id, wiki_url, page_id, section_id, kind, created_at) values (?, ?, ?, ?, ?, ?)",
+  ),
+  insertInfographicForPage: db.prepare<unknown, [string, string, string, string, number]>(
+    "insert into infographics (id, wiki_url, page_id, kind, created_at) values (?, ?, ?, ?, ?)",
+  ),
+  upsertWikiPage: db.prepare<
+    unknown,
+    [string, string, string, string, string | null, string | null, string | null, number]
+  >(
+    `insert into wiki_pages (id, wiki_url, wiki_title, wiki_lang, wiki_description, wiki_extract, infobox_json, created_at)
+     values (?, ?, ?, ?, ?, ?, ?, ?)
+     on conflict(id) do update set
+       wiki_title = excluded.wiki_title,
+       wiki_lang = excluded.wiki_lang,
+       wiki_description = excluded.wiki_description,
+       wiki_extract = excluded.wiki_extract,
+       infobox_json = excluded.infobox_json`,
+  ),
+  insertWikiSection: db.prepare<
+    unknown,
+    [string, string, number, string, string | null, number | null, string | null, number]
+  >(
+    `insert into wiki_sections (id, page_id, section_index, kind, title, level, text_body, created_at)
+     values (?, ?, ?, ?, ?, ?, ?, ?)`,
+  ),
+  deleteSectionsForPage: db.prepare<unknown, [string]>(
+    "delete from wiki_sections where page_id = ?",
+  ),
+  getWikiPageByUrl: db.prepare<WikiPage, [string]>(
+    "select * from wiki_pages where wiki_url = ?",
   ),
   markDone: db.prepare<
     unknown,

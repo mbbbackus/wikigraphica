@@ -54,3 +54,45 @@ export function buildPrompt(s: WikiSummary, style?: string): string {
     .filter(Boolean)
     .join("\n\n");
 }
+
+export function buildSectionPrompt(args: {
+  pageTitle: string;
+  pageDescription?: string;
+  sectionTitle: string;
+  sectionLevel: number;
+  sectionText: string;
+  style?: string;
+}): string {
+  const { pageTitle, pageDescription, sectionTitle, sectionText, style } = args;
+  return [
+    `Create a single-page infographic visualizing the section "${sectionTitle}" of the Wikipedia article "${pageTitle}".`,
+    pageDescription ? `Page subject: ${pageDescription}.` : "",
+    `Make the section title "${sectionTitle}" the dominant heading of the infographic, not the page title.`,
+    `Use only the following section content as facts. Do not invent additional facts.\n\n${sectionText}`,
+    `Style: ${style ?? DEFAULT_STYLE} No logos, watermarks, or fictional sources.`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+export function buildInfoboxPrompt(args: {
+  pageTitle: string;
+  pageDescription?: string;
+  infobox: Array<{ key: string; value: string }>;
+  style?: string;
+}): string {
+  const { pageTitle, pageDescription, infobox, style } = args;
+  const lines = infobox
+    .slice(0, 12)
+    .map((p) => `- ${p.key}: ${p.value}`)
+    .join("\n");
+  return [
+    `Create a "key facts" infographic for the Wikipedia article "${pageTitle}", visualizing the article's right-rail infobox as a stat-card layout.`,
+    pageDescription ? `Page subject: ${pageDescription}.` : "",
+    `Render the page title prominently and arrange each fact below as a labeled callout (small icon + label + value). Keep callouts compact, scannable, and faithful to the values given.`,
+    `Facts to include (verbatim values):\n${lines}`,
+    `Style: ${style ?? DEFAULT_STYLE} No logos, watermarks, or fictional sources.`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}

@@ -8,5 +8,8 @@
     "worker": "bun run scripts/worker.ts",
     "build-edges": "bun run scripts/build-edges.ts"
   },
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "cheerio": "^1.2.0"
+  }
 }

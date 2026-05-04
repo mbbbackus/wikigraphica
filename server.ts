@@ -9,9 +9,12 @@ import {
 } from "./db";
 import {
   buildPrompt,
+  buildSectionPrompt,
+  buildInfoboxPrompt,
   fetchWikiSummary,
   parseWikipediaUrl,
 } from "./wiki";
+import { fetchPageStructure } from "./wiki-structure";
 import {
   IMAGE_MODEL,
   IMAGE_QUALITY,
@@ -29,6 +32,42 @@ function jsonError(err: unknown, status = 400) {
   return Response.json({ error: msg }, { status });
 }
 
+async function generateOne(
+  infographicId: string,
+  prompt: string,
+  meta: {
+    lang: string;
+    title: string;
+    description?: string;
+    extract?: string;
+    categoryKey: string | null;
+  },
+) {
+  try {
+    const buffer = await generateImage(prompt);
+    const imagePath = `${infographicId}.png`;
+    await write(join(IMAGES_DIR, imagePath), buffer);
+    queries.markDone.run(
+      meta.title,
+      meta.lang,
+      meta.description ?? "",
+      meta.extract ?? "",
+      imagePath,
+      prompt,
+      IMAGE_MODEL,
+      IMAGE_QUALITY,
+      IMAGE_SIZE,
+      meta.categoryKey,
+      Date.now(),
+      infographicId,
+    );
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`gen ${infographicId} failed:`, msg);
+    queries.markError.run(msg, Date.now(), infographicId);
+  }
+}
+
 async function processInBackground(
   infographicId: string,
   wikiUrl: string,
@@ -37,14 +76,14 @@ async function processInBackground(
   try {
     const { lang, title } = parseWikipediaUrl(wikiUrl);
     const summary = await fetchWikiSummary(lang, title);
-    let categoryKey: import("./categories").CategoryKey | null = null;
+    let categoryKey: string | null = null;
     if (forceCategory === "default") {
       categoryKey = null;
     } else if (
       forceCategory &&
       (CATEGORY_BY_KEY as Record<string, unknown>)[forceCategory]
     ) {
-      categoryKey = forceCategory as import("./categories").CategoryKey;
+      categoryKey = forceCategory;
     } else {
       categoryKey = await classify({
         title: summary.title,
@@ -53,31 +92,138 @@ async function processInBackground(
       });
     }
     const style = categoryKey ? CATEGORY_BY_KEY[categoryKey].style : undefined;
-    const prompt = buildPrompt(summary, style);
+
+    // 1. Generate the overview infographic (the request the worker is polling).
+    const overviewPrompt = buildPrompt(summary, style);
     console.log(
-      `gen ${infographicId} category=${categoryKey ?? "default"}${forceCategory ? ` (forced=${forceCategory})` : ""} title="${summary.title}"`,
+      `gen ${infographicId} OVERVIEW category=${categoryKey ?? "default"} title="${summary.title}"`,
     );
-    const buffer = await generateImage(prompt);
-    const imagePath = `${infographicId}.png`;
-    await write(join(IMAGES_DIR, imagePath), buffer);
-    queries.markDone.run(
-      summary.title,
+    await generateOne(infographicId, overviewPrompt, {
       lang,
-      summary.description ?? "",
-      summary.extract ?? "",
-      imagePath,
-      prompt,
-      IMAGE_MODEL,
-      IMAGE_QUALITY,
-      IMAGE_SIZE,
+      title: summary.title,
+      description: summary.description,
+      extract: summary.extract,
       categoryKey,
-      Date.now(),
-      infographicId,
+    });
+
+    // 2. Fan out: fetch structure, save page + sections, queue per-section gens.
+    fanOutSectionsAndInfobox({
+      wikiUrl,
+      lang,
+      summary,
+      categoryKey,
+      style,
+    }).catch((err) =>
+      console.warn(`fan-out failed for ${wikiUrl}:`, err),
     );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`gen ${infographicId} failed:`, msg);
     queries.markError.run(msg, Date.now(), infographicId);
+  }
+}
+
+async function fanOutSectionsAndInfobox(args: {
+  wikiUrl: string;
+  lang: string;
+  summary: { title: string; description?: string; extract: string };
+  categoryKey: string | null;
+  style: string | undefined;
+}) {
+  const { wikiUrl, lang, summary, categoryKey, style } = args;
+  const structure = await fetchPageStructure(lang, summary.title);
+  const pageId = wikiUrl;
+  queries.upsertWikiPage.run(
+    pageId,
+    wikiUrl,
+    summary.title,
+    lang,
+    summary.description ?? null,
+    summary.extract ?? null,
+    structure.infobox ? JSON.stringify(structure.infobox) : null,
+    Date.now(),
+  );
+  queries.deleteSectionsForPage.run(pageId);
+
+  let idx = 0;
+  // Infobox first (index 0)
+  if (structure.infobox && structure.infobox.length) {
+    const sectionId = crypto.randomUUID();
+    queries.insertWikiSection.run(
+      sectionId,
+      pageId,
+      idx++,
+      "infobox",
+      "Infobox",
+      0,
+      JSON.stringify(structure.infobox),
+      Date.now(),
+    );
+    const id = crypto.randomUUID();
+    queries.insertInfographicForSection.run(
+      id,
+      wikiUrl,
+      pageId,
+      sectionId,
+      "infobox",
+      Date.now(),
+    );
+    const prompt = buildInfoboxPrompt({
+      pageTitle: summary.title,
+      pageDescription: summary.description,
+      infobox: structure.infobox,
+      style,
+    });
+    console.log(`gen ${id} INFOBOX page="${summary.title}"`);
+    generateOne(id, prompt, {
+      lang,
+      title: `${summary.title} — Infobox`,
+      description: summary.description,
+      extract: structure.infobox.map((p) => `${p.key}: ${p.value}`).join("\n"),
+      categoryKey,
+    }).catch((e) => console.warn("infobox gen failed", e));
+  }
+
+  // Section infographics (H2 + H3)
+  for (const sec of structure.sections) {
+    const sectionId = crypto.randomUUID();
+    queries.insertWikiSection.run(
+      sectionId,
+      pageId,
+      idx++,
+      "section",
+      sec.title,
+      sec.level,
+      sec.text,
+      Date.now(),
+    );
+    const id = crypto.randomUUID();
+    queries.insertInfographicForSection.run(
+      id,
+      wikiUrl,
+      pageId,
+      sectionId,
+      "section",
+      Date.now(),
+    );
+    const prompt = buildSectionPrompt({
+      pageTitle: summary.title,
+      pageDescription: summary.description,
+      sectionTitle: sec.title,
+      sectionLevel: sec.level,
+      sectionText: sec.text,
+      style,
+    });
+    console.log(
+      `gen ${id} SECTION "${sec.title}" (h${sec.level}) page="${summary.title}"`,
+    );
+    generateOne(id, prompt, {
+      lang,
+      title: `${summary.title} — ${sec.title}`,
+      description: summary.description,
+      extract: sec.text,
+      categoryKey,
+    }).catch((e) => console.warn("section gen failed", e));
   }
 }
 
