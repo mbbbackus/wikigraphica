@@ -10,7 +10,9 @@
         --fg: #1a1a1a;
         --muted: #6b6b6b;
         --accent: #2b6cb0;
+        --accent-soft: #ebf2fa;
         --border: #e2e2e2;
+        --card: #ffffff;
       }
       * { box-sizing: border-box; }
       body {
@@ -21,25 +23,25 @@
         min-height: 100vh;
       }
       main {
-        max-width: 760px;
+        max-width: 1100px;
         margin: 0 auto;
         padding: 48px 24px 96px;
       }
-      h1 {
+      header h1 {
         font-size: 32px;
         margin: 0 0 8px;
         letter-spacing: -0.02em;
       }
       .tagline {
-        margin: 0 0 32px;
+        margin: 0 0 24px;
         color: var(--muted);
       }
       form {
         display: flex;
         gap: 8px;
-        margin-bottom: 24px;
+        margin-bottom: 12px;
       }
-      input[type="url"] {
+      input[type="text"] {
         flex: 1;
         padding: 12px 14px;
         font-size: 15px;
@@ -48,7 +50,7 @@
         background: white;
         font-family: inherit;
       }
-      input[type="url"]:focus {
+      input[type="text"]:focus {
         outline: 2px solid var(--accent);
         outline-offset: -1px;
         border-color: transparent;
@@ -64,9 +66,19 @@
         cursor: pointer;
         font-family: inherit;
       }
-      button:disabled {
-        background: #a0aec0;
-        cursor: not-allowed;
+      button.ghost {
+        background: transparent;
+        color: var(--accent);
+        border: 1px solid var(--border);
+        padding: 8px 14px;
+        font-size: 14px;
+      }
+      button:disabled { opacity: 0.6; cursor: not-allowed; }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 24px;
       }
       .status {
         font-size: 14px;
@@ -74,24 +86,70 @@
         min-height: 20px;
       }
       .status.error { color: #c53030; }
-      .result {
-        margin-top: 32px;
-      }
-      .result h2 {
-        font-size: 20px;
-        margin: 0 0 4px;
-      }
-      .result .desc {
-        margin: 0 0 16px;
+      .section-title {
+        font-size: 13px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
         color: var(--muted);
-        font-size: 14px;
+        margin: 32px 0 12px;
       }
-      .result img {
-        width: 100%;
-        height: auto;
-        border-radius: 12px;
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 16px;
+      }
+      .card {
+        background: var(--card);
         border: 1px solid var(--border);
-        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      .card.fresh { box-shadow: 0 0 0 2px var(--accent); }
+      .card .img-wrap {
+        aspect-ratio: 2 / 3;
+        background: #f0eee9;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .card img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .card .meta {
+        padding: 10px 12px 12px;
+      }
+      .card .title {
+        font-size: 14px;
+        font-weight: 600;
+        margin: 0 0 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .card .sub {
+        font-size: 12px;
+        color: var(--muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .card a {
+        color: inherit;
+        text-decoration: none;
+      }
+      .pending {
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-size: 13px;
+        text-align: center;
+        padding: 8px 12px;
       }
       .spinner {
         display: inline-block;
@@ -105,74 +163,202 @@
         vertical-align: -2px;
       }
       @keyframes spin { to { transform: rotate(360deg); } }
+      .empty {
+        color: var(--muted);
+        font-size: 14px;
+        padding: 12px 0;
+      }
     </style>
   </head>
   <body>
     <main>
-      <h1>Wikigraphica</h1>
-      <p class="tagline">Paste a Wikipedia URL — get an infographic.</p>
+      <header>
+        <h1>Wikigraphica</h1>
+        <p class="tagline">Paste a Wikipedia URL or search keywords.</p>
+      </header>
+
       <form id="form">
         <input
-          id="url"
-          type="url"
+          id="q"
+          type="text"
           required
-          placeholder="https://en.wikipedia.org/wiki/Albert_Einstein"
+          placeholder="https://en.wikipedia.org/wiki/Octopus  —  or  —  octopus"
           autocomplete="off"
           autofocus
         />
-        <button id="submit" type="submit">Generate</button>
+        <button id="submit" type="submit">Go</button>
       </form>
-      <div id="status" class="status"></div>
-      <div id="result" class="result" hidden>
-        <h2 id="title"></h2>
-        <p id="desc" class="desc"></p>
-        <img id="image" alt="" />
+      <div class="row">
+        <button id="gallery-btn" class="ghost" type="button">View gallery</button>
+        <span id="status" class="status"></span>
       </div>
+
+      <section id="results-section" hidden>
+        <div class="section-title" id="results-label">Results</div>
+        <div id="results" class="grid"></div>
+      </section>
+
+      <section id="gallery-section" hidden>
+        <div class="section-title">Recent infographics</div>
+        <div id="gallery" class="grid"></div>
+      </section>
     </main>
+
     <script>
       const form = document.getElementById("form");
-      const urlInput = document.getElementById("url");
+      const qInput = document.getElementById("q");
       const submitBtn = document.getElementById("submit");
       const statusEl = document.getElementById("status");
-      const resultEl = document.getElementById("result");
-      const titleEl = document.getElementById("title");
-      const descEl = document.getElementById("desc");
-      const imgEl = document.getElementById("image");
+      const galleryBtn = document.getElementById("gallery-btn");
+      const resultsSection = document.getElementById("results-section");
+      const resultsLabel = document.getElementById("results-label");
+      const resultsEl = document.getElementById("results");
+      const gallerySection = document.getElementById("gallery-section");
+      const galleryEl = document.getElementById("gallery");
+
+      function isWikiUrl(s) {
+        try {
+          const u = new URL(s);
+          return /(^|\.)wikipedia\.org$/.test(u.hostname) && /^\/wiki\/.+/.test(u.pathname);
+        } catch {
+          return false;
+        }
+      }
+
+      function cardHtml(row, opts = {}) {
+        const fresh = opts.fresh ? " fresh" : "";
+        const date = new Date(row.created_at).toLocaleString();
+        const imgSrc = row.image_url || "";
+        const wikiHref = row.wiki_url;
+        return `
+          <div class="card${fresh}" data-id="${row.id}">
+            <a class="img-wrap" href="${imgSrc}" target="_blank" rel="noopener">
+              <img src="${imgSrc}" alt="${row.wiki_title}" />
+            </a>
+            <div class="meta">
+              <div class="title"><a href="${wikiHref}" target="_blank" rel="noopener">${row.wiki_title}</a></div>
+              <div class="sub">${date}</div>
+            </div>
+          </div>
+        `;
+      }
+
+      function pendingCardHtml() {
+        return `
+          <div class="card" id="pending-card">
+            <div class="img-wrap">
+              <div class="pending"><span class="spinner"></span>Generating new infographic…</div>
+            </div>
+            <div class="meta">
+              <div class="title">New generation</div>
+              <div class="sub">~15–30s</div>
+            </div>
+          </div>
+        `;
+      }
+
+      function renderResults(rows, { withPending = false } = {}) {
+        resultsSection.hidden = false;
+        const cards = rows.map((r, i) => cardHtml(r, { fresh: i === 0 && withPending === false ? false : false }));
+        resultsEl.innerHTML = (withPending ? pendingCardHtml() : "") + cards.join("");
+      }
+
+      function setStatus(text, isError = false) {
+        statusEl.className = "status" + (isError ? " error" : "");
+        statusEl.innerHTML = text;
+      }
+
+      async function loadGallery() {
+        gallerySection.hidden = false;
+        galleryEl.innerHTML = '<div class="empty">Loading…</div>';
+        try {
+          const res = await fetch("/gallery");
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "failed");
+          if (!data.results.length) {
+            galleryEl.innerHTML = '<div class="empty">No infographics yet. Generate one above.</div>';
+            return;
+          }
+          galleryEl.innerHTML = data.results.map((r) => cardHtml(r)).join("");
+        } catch (err) {
+          galleryEl.innerHTML = `<div class="empty">Error: ${err.message}</div>`;
+        }
+      }
+
+      galleryBtn.addEventListener("click", () => {
+        if (gallerySection.hidden) {
+          galleryBtn.textContent = "Hide gallery";
+          loadGallery();
+        } else {
+          gallerySection.hidden = true;
+          galleryBtn.textContent = "View gallery";
+        }
+      });
 
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
-        const url = urlInput.value.trim();
-        if (!url) return;
+        const q = qInput.value.trim();
+        if (!q) return;
 
         submitBtn.disabled = true;
-        submitBtn.textContent = "Generating…";
-        statusEl.className = "status";
-        statusEl.innerHTML =
-          '<span class="spinner"></span>Fetching summary and generating infographic (this may take 30–60s)…';
-        resultEl.hidden = true;
+        submitBtn.textContent = "Working…";
+        setStatus("");
+        resultsEl.innerHTML = "";
+        resultsSection.hidden = true;
 
         try {
-          const res = await fetch("/generate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ url }),
-          });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+          if (isWikiUrl(q)) {
+            resultsLabel.textContent = "Cached + generating…";
+            const cachedPromise = fetch("/by-url?url=" + encodeURIComponent(q))
+              .then((r) => r.json())
+              .catch(() => ({ results: [] }));
+            const generatingPromise = fetch("/generate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ url: q }),
+            }).then(async (r) => {
+              const d = await r.json();
+              if (!r.ok) throw new Error(d.error || "generate failed");
+              return d;
+            });
 
-          titleEl.textContent = data.title;
-          descEl.textContent = data.description || "";
-          descEl.hidden = !data.description;
-          imgEl.src = "data:image/png;base64," + data.imageBase64;
-          imgEl.alt = "Infographic for " + data.title;
-          resultEl.hidden = false;
-          statusEl.textContent = "";
+            const cached = await cachedPromise;
+            renderResults(cached.results || [], { withPending: true });
+            setStatus(
+              cached.results?.length
+                ? `Showing ${cached.results.length} cached. New one generating in background.`
+                : "No cached versions. Generating fresh — ~15–30s.",
+            );
+
+            try {
+              const fresh = await generatingPromise;
+              const pending = document.getElementById("pending-card");
+              if (pending) pending.remove();
+              resultsEl.insertAdjacentHTML("afterbegin", cardHtml(fresh, { fresh: true }));
+              resultsLabel.textContent = "Results";
+              setStatus("Done.");
+            } catch (err) {
+              const pending = document.getElementById("pending-card");
+              if (pending) pending.remove();
+              setStatus("Generation failed: " + err.message, true);
+            }
+          } else {
+            resultsLabel.textContent = `Search results for "${q}"`;
+            const res = await fetch("/search?q=" + encodeURIComponent(q));
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "search failed");
+            renderResults(data.results || []);
+            setStatus(
+              data.results?.length
+                ? `${data.results.length} match${data.results.length === 1 ? "" : "es"}.`
+                : "No matches. Paste a Wikipedia URL to generate one.",
+            );
+          }
         } catch (err) {
-          statusEl.className = "status error";
-          statusEl.textContent = "Error: " + (err.message || err);
+          setStatus("Error: " + err.message, true);
         } finally {
           submitBtn.disabled = false;
-          submitBtn.textContent = "Generate";
+          submitBtn.textContent = "Go";
         }
       });
     </script>
