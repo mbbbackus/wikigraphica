@@ -124,7 +124,8 @@
         z-index: 2;
       }
       .card:hover .card-actions { opacity: 1; }
-      .card-actions button {
+      .card-actions .regen-wrap { position: relative; }
+      .card-actions .regen-btn {
         font-size: 12px;
         padding: 5px 10px;
         background: rgba(20, 20, 20, 0.78);
@@ -134,7 +135,46 @@
         border: none;
         cursor: pointer;
       }
-      .card-actions button:disabled { opacity: 0.6; cursor: progress; }
+      .card-actions .regen-btn:disabled { opacity: 0.6; cursor: progress; }
+      .card-actions .regen-menu {
+        position: absolute;
+        top: 100%;
+        right: 0;
+        margin-top: 4px;
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+        padding: 4px;
+        min-width: 200px;
+        max-height: 280px;
+        overflow-y: auto;
+        z-index: 10;
+        display: none;
+      }
+      .card-actions .regen-wrap:hover .regen-menu,
+      .card-actions .regen-wrap:focus-within .regen-menu { display: block; }
+      .card-actions .regen-item {
+        font-size: 13px;
+        color: var(--fg);
+        padding: 6px 10px;
+        cursor: pointer;
+        border-radius: 4px;
+        white-space: nowrap;
+      }
+      .card-actions .regen-item:hover { background: var(--accent-soft); color: var(--accent); }
+      .card-actions .regen-divider {
+        height: 1px;
+        background: var(--border);
+        margin: 4px 0;
+      }
+      .card-actions .regen-section {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        padding: 6px 10px 2px;
+      }
       .card.error { border-color: var(--error); }
       .card .img-wrap {
         aspect-ratio: 1 / 1;
@@ -309,34 +349,25 @@
         }
       }
 
-      async function regenerate(wikiUrl, btn) {
-        if (btn) {
-          btn.disabled = true;
-          btn.textContent = "↻ Queuing…";
-        }
+      async function regenerate(wikiUrl, category) {
         try {
+          const body = { url: wikiUrl };
+          if (category) body.category = category;
           const r = await fetch("/generate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ url: wikiUrl }),
+            body: JSON.stringify(body),
           });
           const d = await r.json();
           if (!r.ok) throw new Error(d.error || "failed");
           if (d.infographic?.id) addMyId(d.infographic.id);
-          setStatus(`Regenerating ${escape(wikiUrl)}…`);
+          const tag = category ? ` (style: ${category})` : "";
+          setStatus(`Regenerating${tag} — ~30s…`);
           managePolling(true);
           if (currentTab === "queue") loadQueue();
-          if (currentTab === "results") {
-            const card = document.querySelector(`.card[data-url="${cssEscape(wikiUrl)}"]`);
-            if (card) viewByUrl(wikiUrl);
-          }
+          if (currentTab === "results") viewByUrl(wikiUrl);
         } catch (err) {
           setStatus("Error: " + err.message, true);
-        } finally {
-          if (btn) {
-            btn.disabled = false;
-            btn.textContent = "↻ Regenerate";
-          }
         }
       }
 
@@ -346,15 +377,20 @@
 
       function attachGridHandlers(containerEl) {
         containerEl.addEventListener("click", (e) => {
-          const regenBtn = e.target.closest(".js-regenerate");
-          if (regenBtn) {
+          const regenItem = e.target.closest(".regen-item");
+          if (regenItem) {
             e.stopPropagation();
-            const card = regenBtn.closest(".card");
+            const card = regenItem.closest(".card");
             if (!card) return;
-            regenerate(card.dataset.url, regenBtn);
+            const cat = regenItem.dataset.cat || null;
+            regenerate(card.dataset.url, cat);
             return;
           }
-          if (e.target.closest("a.js-wiki-link")) return; // let wiki link navigate
+          if (e.target.closest(".regen-wrap")) {
+            e.stopPropagation();
+            return;
+          }
+          if (e.target.closest("a.js-wiki-link")) return;
           const card = e.target.closest(".card");
           if (!card || !card.dataset.url) return;
           viewByUrl(card.dataset.url);
@@ -402,7 +438,25 @@
         const catBadge = row.category ? `<div class="cat">${escape(row.category)}</div>` : "";
         const actions = `
           <div class="card-actions">
-            <button type="button" class="js-regenerate" title="Regenerate">↻ Regenerate</button>
+            <div class="regen-wrap" tabindex="0">
+              <button type="button" class="regen-btn" title="Regenerate">↻ Regenerate ▾</button>
+              <div class="regen-menu">
+                <div class="regen-section">Pick a style</div>
+                <div class="regen-item" data-cat="">Auto (classify)</div>
+                <div class="regen-item" data-cat="default">Default editorial</div>
+                <div class="regen-divider"></div>
+                <div class="regen-item" data-cat="person">Person — portrait</div>
+                <div class="regen-item" data-cat="place">Place — map</div>
+                <div class="regen-item" data-cat="event">Event — timeline</div>
+                <div class="regen-item" data-cat="science">Science — diagram</div>
+                <div class="regen-item" data-cat="technology">Technology — schematic</div>
+                <div class="regen-item" data-cat="nature">Nature — naturalist</div>
+                <div class="regen-item" data-cat="culture">Arts &amp; culture</div>
+                <div class="regen-item" data-cat="sports">Sports — pitch</div>
+                <div class="regen-item" data-cat="food">Food — recipe card</div>
+                <div class="regen-item" data-cat="math">Math — formula</div>
+              </div>
+            </div>
           </div>
         `;
         return `

@@ -29,19 +29,33 @@ function jsonError(err: unknown, status = 400) {
   return Response.json({ error: msg }, { status });
 }
 
-async function processInBackground(infographicId: string, wikiUrl: string) {
+async function processInBackground(
+  infographicId: string,
+  wikiUrl: string,
+  forceCategory?: string | null,
+) {
   try {
     const { lang, title } = parseWikipediaUrl(wikiUrl);
     const summary = await fetchWikiSummary(lang, title);
-    const categoryKey = await classify({
-      title: summary.title,
-      description: summary.description,
-      extract: summary.extract,
-    });
+    let categoryKey: import("./categories").CategoryKey | null = null;
+    if (forceCategory === "default") {
+      categoryKey = null;
+    } else if (
+      forceCategory &&
+      (CATEGORY_BY_KEY as Record<string, unknown>)[forceCategory]
+    ) {
+      categoryKey = forceCategory as import("./categories").CategoryKey;
+    } else {
+      categoryKey = await classify({
+        title: summary.title,
+        description: summary.description,
+        extract: summary.extract,
+      });
+    }
     const style = categoryKey ? CATEGORY_BY_KEY[categoryKey].style : undefined;
     const prompt = buildPrompt(summary, style);
     console.log(
-      `gen ${infographicId} category=${categoryKey ?? "default"} title="${summary.title}"`,
+      `gen ${infographicId} category=${categoryKey ?? "default"}${forceCategory ? ` (forced=${forceCategory})` : ""} title="${summary.title}"`,
     );
     const buffer = await generateImage(prompt);
     const imagePath = `${infographicId}.png`;
@@ -89,11 +103,11 @@ const server = Bun.serve({
 
     if (req.method === "POST" && path === "/generate") {
       try {
-        const { url: wikiUrl } = (await req.json()) as { url: string };
-        const { canonical } = parseWikipediaUrl(wikiUrl);
+        const body = (await req.json()) as { url: string; category?: string | null };
+        const { canonical } = parseWikipediaUrl(body.url);
         const id = crypto.randomUUID();
         queries.insertInfographic.run(id, canonical, Date.now());
-        processInBackground(id, canonical);
+        processInBackground(id, canonical, body.category ?? null);
         const row = queries.getById.get(id);
         return Response.json({ infographic: row ? viewInfographic(row) : null });
       } catch (err) {

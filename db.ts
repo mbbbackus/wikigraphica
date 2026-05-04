@@ -95,7 +95,14 @@ export const queries = {
     "select * from infographics where id = ?",
   ),
   galleryDone: db.prepare<Infographic, [number]>(
-    "select * from infographics where status = 'done' order by created_at desc limit ?",
+    `select * from (
+       select *, row_number() over (partition by wiki_url order by created_at desc) as rn
+       from infographics
+       where status = 'done'
+     )
+     where rn = 1
+     order by created_at desc
+     limit ?`,
   ),
   byUrl: db.prepare<Infographic, [string, number]>(
     "select * from infographics where wiki_url = ? order by created_at desc limit ?",

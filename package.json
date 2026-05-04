@@ -3,7 +3,9 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "dev": "bun run --hot server.ts"
+    "dev": "bun run --hot server.ts",
+    "build-queue": "bun run scripts/build-queue.ts",
+    "worker": "bun run scripts/worker.ts"
   },
   "type": "module"
 }
