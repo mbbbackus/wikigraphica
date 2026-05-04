@@ -549,6 +549,28 @@
         if (e.key === "Escape" && !lightboxEl.hidden) closeLightbox();
       });
 
+      const TAB_KEY = "wg.tab";
+      function saveTab(name) {
+        try { localStorage.setItem(TAB_KEY, name); } catch {}
+      }
+      function loadSavedTab() {
+        try { return localStorage.getItem(TAB_KEY); } catch { return null; }
+      }
+
+      function updateUrl(tabName, wikiUrl) {
+        const params = new URLSearchParams();
+        if (tabName === "results" && wikiUrl) {
+          params.set("wiki", wikiUrl);
+        } else if (tabName && tabName !== "graph") {
+          params.set("tab", tabName);
+        }
+        const qs = params.toString();
+        const newPath = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+        if (window.location.pathname + window.location.search !== newPath) {
+          window.history.replaceState({}, "", newPath);
+        }
+      }
+
       const MY_IDS_KEY = "wg.my_ids";
       function loadMyIds() {
         try {
@@ -596,6 +618,8 @@
           currentResultsUrl = null;
           loadQueue();
         }
+        saveTab(name);
+        updateUrl(name, currentResultsUrl);
       }
 
       $("results-regen-menu").addEventListener("click", (e) => {
@@ -1161,9 +1185,26 @@
         if (currentTab === "graph") loadGraph();
       });
 
-      function init() {
+      async function init() {
+        const params = new URLSearchParams(window.location.search);
+        const wiki = params.get("wiki");
+        const tabParam = params.get("tab");
+        const saved = loadSavedTab();
+        if (wiki && isWikiUrl(wiki)) {
+          await viewByUrl(wiki);
+          return;
+        }
+        if (tabParam && tabs[tabParam]) {
+          showTab(tabParam);
+          return;
+        }
+        if (saved && tabs[saved]) {
+          showTab(saved);
+          return;
+        }
         showTab("graph");
       }
+      window.addEventListener("popstate", () => init());
       if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", init);
       } else {
