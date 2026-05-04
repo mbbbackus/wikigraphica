@@ -2,17 +2,11 @@ import { file, write } from "bun";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import {
+  byIds,
   queries,
   viewInfographic,
   type InfographicView,
 } from "./db";
-import {
-  clearCookie,
-  getUserFromRequest,
-  login,
-  sessionCookie,
-  signup,
-} from "./auth";
 import {
   buildPrompt,
   fetchWikiSummary,
@@ -32,10 +26,6 @@ function jsonError(err: unknown, status = 400) {
   const msg = err instanceof Error ? err.message : String(err);
   console.error("error:", msg);
   return Response.json({ error: msg }, { status });
-}
-
-function publicUser(u: { id: string; username: string } | null) {
-  return u ? { id: u.id, username: u.username } : null;
 }
 
 async function processInBackground(infographicId: string, wikiUrl: string) {
@@ -86,55 +76,12 @@ const server = Bun.serve({
       });
     }
 
-    if (req.method === "GET" && path === "/auth/me") {
-      const user = getUserFromRequest(req);
-      return Response.json({ user: publicUser(user) });
-    }
-
-    if (req.method === "POST" && path === "/auth/signup") {
-      try {
-        const { username, password } = (await req.json()) as {
-          username: string;
-          password: string;
-        };
-        const user = await signup(username, password);
-        return Response.json(
-          { user: publicUser(user) },
-          { headers: { "Set-Cookie": sessionCookie(user.id) } },
-        );
-      } catch (err) {
-        return jsonError(err);
-      }
-    }
-
-    if (req.method === "POST" && path === "/auth/login") {
-      try {
-        const { username, password } = (await req.json()) as {
-          username: string;
-          password: string;
-        };
-        const user = await login(username, password);
-        return Response.json(
-          { user: publicUser(user) },
-          { headers: { "Set-Cookie": sessionCookie(user.id) } },
-        );
-      } catch (err) {
-        return jsonError(err);
-      }
-    }
-
-    if (req.method === "POST" && path === "/auth/logout") {
-      return Response.json({ ok: true }, { headers: { "Set-Cookie": clearCookie() } });
-    }
-
     if (req.method === "POST" && path === "/generate") {
-      const user = getUserFromRequest(req);
-      if (!user) return jsonError(new Error("Login required"), 401);
       try {
         const { url: wikiUrl } = (await req.json()) as { url: string };
         const { canonical } = parseWikipediaUrl(wikiUrl);
         const id = crypto.randomUUID();
-        queries.insertInfographic.run(id, user.id, canonical, Date.now());
+        queries.insertInfographic.run(id, canonical, Date.now());
         processInBackground(id, canonical);
         const row = queries.getById.get(id);
         return Response.json({ infographic: row ? viewInfographic(row) : null });
@@ -156,9 +103,13 @@ const server = Bun.serve({
       }
     }
 
-    if (req.method === "GET" && path === "/gallery") {
+    if (req.method === "POST" && path === "/by-ids") {
       try {
-        const rows = queries.galleryDone.all(120);
+        const { ids } = (await req.json()) as { ids: string[] };
+        const filtered = (ids ?? [])
+          .filter((s) => typeof s === "string" && /^[a-f0-9-]{10,64}$/i.test(s))
+          .slice(0, 500);
+        const rows = byIds(filtered);
         const results: InfographicView[] = rows.map(viewInfographic);
         return Response.json({ results });
       } catch (err) {
@@ -166,11 +117,9 @@ const server = Bun.serve({
       }
     }
 
-    if (req.method === "GET" && path === "/queue") {
-      const user = getUserFromRequest(req);
-      if (!user) return jsonError(new Error("Login required"), 401);
+    if (req.method === "GET" && path === "/gallery") {
       try {
-        const rows = queries.myQueue.all(user.id, 200);
+        const rows = queries.galleryDone.all(120);
         const results: InfographicView[] = rows.map(viewInfographic);
         return Response.json({ results });
       } catch (err) {

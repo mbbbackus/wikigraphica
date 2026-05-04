@@ -31,33 +31,11 @@
         border-bottom: 1px solid var(--border);
         background: white;
       }
-      .brand {
-        font-weight: 600;
-        font-size: 18px;
-        letter-spacing: -0.01em;
-      }
-      .auth-area {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-        font-size: 14px;
-      }
-      .auth-area .who { color: var(--muted); }
-      main {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 32px 24px 96px;
-      }
-      .tagline {
-        margin: 0 0 20px;
-        color: var(--muted);
-      }
-      form.search {
-        display: flex;
-        gap: 8px;
-        margin-bottom: 16px;
-      }
-      input[type="text"], input[type="password"], input[type="url"] {
+      .brand { font-weight: 600; font-size: 18px; letter-spacing: -0.01em; }
+      main { max-width: 1200px; margin: 0 auto; padding: 32px 24px 96px; }
+      .tagline { margin: 0 0 20px; color: var(--muted); }
+      form.search { display: flex; gap: 8px; margin-bottom: 16px; }
+      input[type="text"] {
         flex: 1;
         padding: 12px 14px;
         font-size: 15px;
@@ -82,22 +60,6 @@
         cursor: pointer;
         font-family: inherit;
       }
-      button.ghost {
-        background: transparent;
-        color: var(--accent);
-        border: 1px solid var(--border);
-        padding: 8px 14px;
-        font-size: 14px;
-      }
-      button.link {
-        background: transparent;
-        color: var(--accent);
-        border: none;
-        padding: 0;
-        font-size: 14px;
-        text-decoration: underline;
-        cursor: pointer;
-      }
       button:disabled { opacity: 0.6; cursor: not-allowed; }
       .tabs {
         display: flex;
@@ -116,10 +78,7 @@
         border-bottom: 2px solid transparent;
         margin-bottom: -1px;
       }
-      .tab.active {
-        color: var(--accent);
-        border-bottom-color: var(--accent);
-      }
+      .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
       .tab .badge {
         background: var(--accent-soft);
         color: var(--accent);
@@ -155,20 +114,12 @@
       .card .img-wrap {
         aspect-ratio: 1 / 1;
         background: #f0eee9;
-        position: relative;
         display: flex;
         align-items: center;
         justify-content: center;
       }
-      .card img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        display: block;
-      }
-      .card .meta {
-        padding: 10px 12px 12px;
-      }
+      .card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      .card .meta { padding: 10px 12px 12px; }
       .card .title {
         font-size: 14px;
         font-weight: 600;
@@ -211,38 +162,12 @@
         vertical-align: -2px;
       }
       @keyframes spin { to { transform: rotate(360deg); } }
-      .empty {
-        color: var(--muted);
-        font-size: 14px;
-        padding: 24px 0;
-      }
-      .modal-backdrop {
-        position: fixed;
-        inset: 0;
-        background: rgba(0,0,0,0.4);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 100;
-      }
-      .modal {
-        background: white;
-        border-radius: 12px;
-        padding: 24px;
-        width: 100%;
-        max-width: 360px;
-      }
-      .modal h2 { margin: 0 0 16px; font-size: 20px; }
-      .modal .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
-      .modal .field label { font-size: 12px; color: var(--muted); }
-      .modal .actions { display: flex; gap: 8px; justify-content: space-between; align-items: center; margin-top: 16px; }
-      .modal .err { color: var(--error); font-size: 13px; min-height: 18px; }
+      .empty { color: var(--muted); font-size: 14px; padding: 24px 0; }
     </style>
   </head>
   <body>
     <div class="topbar">
       <div class="brand">Wikigraphica</div>
-      <div class="auth-area" id="auth-area"></div>
     </div>
 
     <main>
@@ -267,39 +192,10 @@
         <button class="tab" data-tab="results">Results</button>
       </div>
 
-      <section id="tab-gallery">
-        <div id="gallery" class="grid"></div>
-      </section>
-
-      <section id="tab-queue" hidden>
-        <div id="queue" class="grid"></div>
-      </section>
-
-      <section id="tab-results" hidden>
-        <div id="results" class="grid"></div>
-      </section>
+      <section id="tab-gallery"><div id="gallery" class="grid"></div></section>
+      <section id="tab-queue" hidden><div id="queue" class="grid"></div></section>
+      <section id="tab-results" hidden><div id="results" class="grid"></div></section>
     </main>
-
-    <div id="auth-modal" class="modal-backdrop" hidden>
-      <div class="modal">
-        <h2 id="auth-title">Log in</h2>
-        <form id="auth-form">
-          <div class="field">
-            <label for="auth-username">Username</label>
-            <input id="auth-username" type="text" required autocomplete="username" />
-          </div>
-          <div class="field">
-            <label for="auth-password">Password</label>
-            <input id="auth-password" type="password" required autocomplete="current-password" minlength="6" />
-          </div>
-          <div class="err" id="auth-err"></div>
-          <div class="actions">
-            <button type="button" class="link" id="auth-toggle">Need an account? Sign up</button>
-            <button type="submit" id="auth-submit">Log in</button>
-          </div>
-        </form>
-      </div>
-    </div>
 
     <script>
       const $ = (id) => document.getElementById(id);
@@ -307,7 +203,6 @@
       const qInput = $("q");
       const submitBtn = $("submit");
       const statusEl = $("status");
-      const authArea = $("auth-area");
       const galleryEl = $("gallery");
       const queueEl = $("queue");
       const resultsEl = $("results");
@@ -319,8 +214,27 @@
         results: $("tab-results"),
       };
       let currentTab = "gallery";
-      let me = null;
       let pollTimer = null;
+
+      const MY_IDS_KEY = "wg.my_ids";
+      function loadMyIds() {
+        try {
+          const arr = JSON.parse(localStorage.getItem(MY_IDS_KEY) || "[]");
+          return Array.isArray(arr) ? arr.filter((s) => typeof s === "string") : [];
+        } catch {
+          return [];
+        }
+      }
+      function saveMyIds(ids) {
+        localStorage.setItem(MY_IDS_KEY, JSON.stringify(ids.slice(0, 1000)));
+      }
+      function addMyId(id) {
+        const ids = loadMyIds();
+        if (!ids.includes(id)) {
+          ids.unshift(id);
+          saveMyIds(ids);
+        }
+      }
 
       function setStatus(text, isError = false) {
         statusEl.className = "status" + (isError ? " error" : "");
@@ -349,15 +263,13 @@
         }
       }
 
-      function fmtDate(ts) {
-        return new Date(ts).toLocaleString();
-      }
-
       function escape(s) {
         return String(s ?? "").replace(/[&<>"']/g, (c) => ({
           "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
         }[c]));
       }
+
+      function fmtDate(ts) { return new Date(ts).toLocaleString(); }
 
       function cardHtml(row, opts = {}) {
         const fresh = opts.fresh ? " fresh" : "";
@@ -365,7 +277,6 @@
         const date = fmtDate(row.created_at);
         const wikiHref = escape(row.wiki_url);
         const titleText = escape(row.wiki_title || row.wiki_url);
-        const by = row.username ? `by ${escape(row.username)} · ` : "";
 
         let imgArea;
         if (row.status === "pending") {
@@ -383,84 +294,10 @@
             ${imgArea}
             <div class="meta">
               <div class="title"><a href="${wikiHref}" target="_blank" rel="noopener">${titleText}</a></div>
-              <div class="sub">${by}${date}</div>
+              <div class="sub">${date}</div>
             </div>
           </div>
         `;
-      }
-
-      async function loadMe() {
-        try {
-          const r = await fetch("/auth/me");
-          const d = await r.json();
-          me = d.user;
-        } catch {
-          me = null;
-        }
-        renderAuthArea();
-        return me;
-      }
-
-      function renderAuthArea() {
-        if (me) {
-          authArea.innerHTML = `<span class="who">${escape(me.username)}</span><button class="ghost" id="logout">Log out</button>`;
-          $("logout").addEventListener("click", logout);
-        } else {
-          authArea.innerHTML = `<button class="ghost" id="login">Log in</button>`;
-          $("login").addEventListener("click", () => openAuth("login"));
-        }
-      }
-
-      // Auth modal
-      let authMode = "login";
-      function openAuth(mode) {
-        authMode = mode;
-        $("auth-title").textContent = mode === "login" ? "Log in" : "Sign up";
-        $("auth-submit").textContent = mode === "login" ? "Log in" : "Sign up";
-        $("auth-toggle").textContent =
-          mode === "login" ? "Need an account? Sign up" : "Have an account? Log in";
-        $("auth-err").textContent = "";
-        $("auth-modal").hidden = false;
-        $("auth-username").focus();
-      }
-      function closeAuth() {
-        $("auth-modal").hidden = true;
-        $("auth-form").reset();
-      }
-      $("auth-toggle").addEventListener("click", () =>
-        openAuth(authMode === "login" ? "signup" : "login"),
-      );
-      $("auth-modal").addEventListener("click", (e) => {
-        if (e.target.id === "auth-modal") closeAuth();
-      });
-      $("auth-form").addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const username = $("auth-username").value.trim();
-        const password = $("auth-password").value;
-        $("auth-err").textContent = "";
-        try {
-          const path = authMode === "login" ? "/auth/login" : "/auth/signup";
-          const r = await fetch(path, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username, password }),
-          });
-          const d = await r.json();
-          if (!r.ok) throw new Error(d.error || "failed");
-          me = d.user;
-          renderAuthArea();
-          closeAuth();
-          loadGallery();
-        } catch (err) {
-          $("auth-err").textContent = err.message;
-        }
-      });
-
-      async function logout() {
-        await fetch("/auth/logout", { method: "POST" });
-        me = null;
-        renderAuthArea();
-        if (currentTab === "queue") showTab("gallery");
       }
 
       async function loadGallery() {
@@ -478,18 +315,25 @@
       }
 
       async function loadQueue() {
-        if (!me) {
-          queueEl.innerHTML = '<div class="empty">Log in to see your generations.</div>';
+        const ids = loadMyIds();
+        if (!ids.length) {
+          queueEl.innerHTML = '<div class="empty">Nothing yet. Paste a Wikipedia URL above to generate.</div>';
           updateQueueBadge(0);
+          managePolling(false);
           return;
         }
         try {
-          const r = await fetch("/queue");
+          const r = await fetch("/by-ids", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids }),
+          });
           const d = await r.json();
           if (!r.ok) throw new Error(d.error || "failed");
           if (!d.results.length) {
-            queueEl.innerHTML = '<div class="empty">Nothing yet. Paste a Wikipedia URL above.</div>';
+            queueEl.innerHTML = '<div class="empty">Your generations were not found in the database (it may have been reset).</div>';
             updateQueueBadge(0);
+            managePolling(false);
             return;
           }
           queueEl.innerHTML = d.results.map((row) => cardHtml(row)).join("");
@@ -515,6 +359,7 @@
           pollTimer = setInterval(() => {
             loadQueue();
             if (currentTab === "gallery") loadGallery();
+            if (currentTab === "results") refreshResults();
           }, 3000);
         } else if (!hasPending && pollTimer) {
           clearInterval(pollTimer);
@@ -522,22 +367,40 @@
         }
       }
 
+      async function refreshResults() {
+        const ids = [...resultsEl.querySelectorAll(".card[data-id]")].map(
+          (el) => el.dataset.id,
+        );
+        if (!ids.length) return;
+        try {
+          const r = await fetch("/by-ids", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids }),
+          });
+          const d = await r.json();
+          if (!r.ok) return;
+          // rebuild preserving order
+          const byId = new Map(d.results.map((row) => [row.id, row]));
+          resultsEl.innerHTML = ids
+            .map((id) => byId.get(id))
+            .filter(Boolean)
+            .map((row, i) => cardHtml(row, { fresh: i === 0 }))
+            .join("");
+        } catch {}
+      }
+
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
         const q = qInput.value.trim();
         if (!q) return;
-
-        if (!me) {
-          openAuth("login");
-          return;
-        }
         if (!isWikiUrl(q)) {
           setStatus("Please enter a Wikipedia article URL (https://…wikipedia.org/wiki/…).", true);
           return;
         }
 
         submitBtn.disabled = true;
-        setStatus(`<span class="spinner"></span>Queued ${escape(q)}…`);
+        setStatus(`<span class="spinner"></span>Queued…`);
 
         try {
           const cachedPromise = fetch("/by-url?url=" + encodeURIComponent(q))
@@ -550,30 +413,25 @@
             body: JSON.stringify({ url: q }),
           });
           const d = await r.json();
-          if (!r.ok) {
-            if (r.status === 401) {
-              openAuth("login");
-              setStatus("");
-              return;
-            }
-            throw new Error(d.error || "failed");
-          }
+          if (!r.ok) throw new Error(d.error || "failed");
 
+          const fresh = d.infographic;
+          if (fresh?.id) addMyId(fresh.id);
           qInput.value = "";
 
           const cached = (await cachedPromise).results || [];
-          const fresh = d.infographic;
           const cards = [fresh, ...cached].filter(Boolean);
-          resultsEl.innerHTML = cards.map((row, i) => cardHtml(row, { fresh: i === 0 })).join("");
+          resultsEl.innerHTML = cards
+            .map((row, i) => cardHtml(row, { fresh: i === 0 }))
+            .join("");
           showTab("results");
           setStatus(
             cached.length
-              ? `Generating new infographic. ${cached.length} cached version${cached.length === 1 ? "" : "s"} shown below.`
-              : `Generating new infographic — usually 5–10s.`,
+              ? `Generating new infographic. ${cached.length} cached version${cached.length === 1 ? "" : "s"} below.`
+              : `Generating new infographic — usually 30–40s.`,
           );
 
           managePolling(true);
-          loadQueue();
         } catch (err) {
           setStatus("Error: " + err.message, true);
         } finally {
@@ -581,8 +439,7 @@
         }
       });
 
-      (async function init() {
-        await loadMe();
+      (function init() {
         showTab("gallery");
       })();
     </script>
