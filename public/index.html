@@ -1379,8 +1379,7 @@
         }
 
         const NODE_R = 6;
-        const EXPANDED_SIZE = 100; // px square for the infographic preview
-        const NODE_R_HOVER = 56;   // collision radius (~ rectangle bounding circle)
+        const NODE_R_HOVER = 14;   // small visual bump on hover; preview lives in the tooltip
         const nodes = nodesRaw.map((row) => ({
           id: row.id,
           title: row.wiki_title || row.wiki_url,
@@ -1513,30 +1512,9 @@
           return !graphHidden.has(n.parentCat);
         }
 
+        // Preview lives only in the tooltip now — no in-canvas rectangle overlay.
         function renderIconOverlays() {
-          const ids = activeIds();
-          const data = nodes.filter((n) => ids.has(n.id) && nodeIsVisible(n));
-          const sel = iconLayer
-            .selectAll(".icon-wrap")
-            .data(data, (d) => d.id);
-          const enter = sel
-            .enter()
-            .append("foreignObject")
-            .attr("class", "icon-wrap")
-            .attr("width", EXPANDED_SIZE)
-            .attr("height", EXPANDED_SIZE)
-            .style("overflow", "visible")
-            .style("pointer-events", "none");
-          enter
-            .append("xhtml:div")
-            .attr("class", "icon-wrap-inner")
-            .style("--c", (d) => d.color)
-            .html((d) =>
-              d.imageUrl
-                ? `<img src="${escape(d.imageUrl)}" alt="${escape(d.title)}" />`
-                : `<div class="placeholder"><i class="ph ph-${categoryIcon(d.category)}"></i></div>`,
-            );
-          sel.exit().remove();
+          iconLayer.selectAll(".icon-wrap").remove();
         }
 
         function setHoverHighlight(d) {
@@ -1572,12 +1550,9 @@
           nodes.forEach((n) => {
             n.r = ids.has(n.id) ? NODE_R_HOVER : NODE_R;
           });
-          // Hide circles that are about to be covered by an expanded rectangle
-          node.attr("opacity", (n) =>
-            !nodeIsVisible(n) ? 0 : ids.has(n.id) ? 0 : 1,
-          );
-          graphSimulation.alphaTarget(0.25).restart();
-          setTimeout(() => graphSimulation.alphaTarget(0), 1500);
+          node.attr("opacity", (n) => (nodeIsVisible(n) ? 1 : 0));
+          graphSimulation.alphaTarget(0.15).restart();
+          setTimeout(() => graphSimulation.alphaTarget(0), 800);
         }
 
         node
@@ -1685,31 +1660,6 @@
 
         applyVisibility();
 
-        // Dim any expanded rectangle the user's cursor moves over so they can
-        // see nodes underneath and hover them. Pointer-events on the rectangle
-        // are already disabled, so this is purely a visibility tweak.
-        if (svgEl._wgMouseMove) {
-          svgEl.removeEventListener("mousemove", svgEl._wgMouseMove);
-          svgEl.removeEventListener("mouseleave", svgEl._wgMouseLeave);
-        }
-        svgEl._wgMouseMove = (e) => {
-          iconLayer.selectAll(".icon-wrap").each(function () {
-            const r = this.getBoundingClientRect();
-            const inside =
-              e.clientX >= r.left &&
-              e.clientX <= r.right &&
-              e.clientY >= r.top &&
-              e.clientY <= r.bottom;
-            this.style.opacity = inside ? "0.18" : "";
-          });
-        };
-        svgEl._wgMouseLeave = () => {
-          iconLayer.selectAll(".icon-wrap").each(function () {
-            this.style.opacity = "";
-          });
-        };
-        svgEl.addEventListener("mousemove", svgEl._wgMouseMove);
-        svgEl.addEventListener("mouseleave", svgEl._wgMouseLeave);
 
 
         // Stats + legend grouped by PARENT category
