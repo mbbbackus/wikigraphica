@@ -18,6 +18,7 @@ import {
   IMAGE_SIZE,
   generateImage,
 } from "./openai";
+import { CATEGORY_BY_KEY, classify } from "./categories";
 
 const PORT = Number(process.env.PORT ?? 3939);
 const IMAGES_DIR = "data/images";
@@ -32,7 +33,16 @@ async function processInBackground(infographicId: string, wikiUrl: string) {
   try {
     const { lang, title } = parseWikipediaUrl(wikiUrl);
     const summary = await fetchWikiSummary(lang, title);
-    const prompt = buildPrompt(summary);
+    const categoryKey = await classify({
+      title: summary.title,
+      description: summary.description,
+      extract: summary.extract,
+    });
+    const style = categoryKey ? CATEGORY_BY_KEY[categoryKey].style : undefined;
+    const prompt = buildPrompt(summary, style);
+    console.log(
+      `gen ${infographicId} category=${categoryKey ?? "default"} title="${summary.title}"`,
+    );
     const buffer = await generateImage(prompt);
     const imagePath = `${infographicId}.png`;
     await write(join(IMAGES_DIR, imagePath), buffer);
@@ -46,6 +56,7 @@ async function processInBackground(infographicId: string, wikiUrl: string) {
       IMAGE_MODEL,
       IMAGE_QUALITY,
       IMAGE_SIZE,
+      categoryKey,
       Date.now(),
       infographicId,
     );

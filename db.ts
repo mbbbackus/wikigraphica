@@ -20,6 +20,7 @@ db.exec(`
     model text,
     quality text,
     size text,
+    category text,
     status text not null default 'pending',
     error text,
     created_at integer not null,
@@ -30,6 +31,11 @@ db.exec(`
   create index if not exists infographics_recent_idx on infographics(created_at desc);
   create index if not exists infographics_status_idx on infographics(status);
 `);
+
+const cols = db.query<{ name: string }, []>("pragma table_info(infographics)").all();
+if (!cols.some((c) => c.name === "category")) {
+  db.exec("alter table infographics add column category text");
+}
 
 export type Infographic = {
   id: string;
@@ -43,6 +49,7 @@ export type Infographic = {
   model: string | null;
   quality: string | null;
   size: string | null;
+  category: string | null;
   status: "pending" | "done" | "error";
   error: string | null;
   created_at: number;
@@ -64,7 +71,7 @@ export const queries = {
   ),
   markDone: db.prepare<
     unknown,
-    [string, string, string, string, string, string, string, string, string, number, string]
+    [string, string, string, string, string, string, string, string, string, string | null, number, string]
   >(
     `update infographics set
        wiki_title = ?,
@@ -76,6 +83,7 @@ export const queries = {
        model = ?,
        quality = ?,
        size = ?,
+       category = ?,
        status = 'done',
        completed_at = ?
      where id = ?`,

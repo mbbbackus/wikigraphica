@@ -41,12 +41,15 @@ export async function fetchWikiSummary(lang: string, title: string): Promise<Wik
   return (await res.json()) as WikiSummary;
 }
 
-export function buildPrompt(s: WikiSummary): string {
+const DEFAULT_STYLE =
+  "Clean, modern editorial infographic. Bold title, sub-sections with short labels, simple icons or illustrations, 2-4 short factual callouts pulled directly from the summary above. Tasteful limited color palette, light background, readable text.";
+
+export function buildPrompt(s: WikiSummary, style?: string): string {
   return [
     `Create a single-page infographic about "${s.title}".`,
     s.description ? `Subject: ${s.description}.` : "",
     `Use only the following Wikipedia content as the source of facts. Do not invent additional facts.\n\n${s.extract}`,
-    `Style: clean, modern editorial infographic. Bold title, sub-sections with short labels, simple icons or illustrations, 2-4 short factual callouts pulled directly from the summary above. Tasteful limited color palette, light background, readable text. No logos, watermarks, or fictional sources.`,
+    `Style: ${style ?? DEFAULT_STYLE} No logos, watermarks, or fictional sources.`,
   ]
     .filter(Boolean)
     .join("\n\n");
