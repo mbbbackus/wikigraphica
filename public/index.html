@@ -13,6 +13,7 @@
         --accent-soft: #ebf2fa;
         --border: #e2e2e2;
         --card: #ffffff;
+        --error: #c53030;
       }
       * { box-sizing: border-box; }
       body {
@@ -22,26 +23,41 @@
         color: var(--fg);
         min-height: 100vh;
       }
-      main {
-        max-width: 1100px;
-        margin: 0 auto;
-        padding: 48px 24px 96px;
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 14px 24px;
+        border-bottom: 1px solid var(--border);
+        background: white;
       }
-      header h1 {
-        font-size: 32px;
-        margin: 0 0 8px;
-        letter-spacing: -0.02em;
+      .brand {
+        font-weight: 600;
+        font-size: 18px;
+        letter-spacing: -0.01em;
       }
-      .tagline {
-        margin: 0 0 24px;
-        color: var(--muted);
-      }
-      form {
+      .auth-area {
         display: flex;
         gap: 8px;
-        margin-bottom: 12px;
+        align-items: center;
+        font-size: 14px;
       }
-      input[type="text"] {
+      .auth-area .who { color: var(--muted); }
+      main {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 32px 24px 96px;
+      }
+      .tagline {
+        margin: 0 0 20px;
+        color: var(--muted);
+      }
+      form.search {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+      input[type="text"], input[type="password"], input[type="url"] {
         flex: 1;
         padding: 12px 14px;
         font-size: 15px;
@@ -50,7 +66,7 @@
         background: white;
         font-family: inherit;
       }
-      input[type="text"]:focus {
+      input:focus {
         outline: 2px solid var(--accent);
         outline-offset: -1px;
         border-color: transparent;
@@ -73,30 +89,56 @@
         padding: 8px 14px;
         font-size: 14px;
       }
+      button.link {
+        background: transparent;
+        color: var(--accent);
+        border: none;
+        padding: 0;
+        font-size: 14px;
+        text-decoration: underline;
+        cursor: pointer;
+      }
       button:disabled { opacity: 0.6; cursor: not-allowed; }
-      .row {
+      .tabs {
         display: flex;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 24px;
+        gap: 4px;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 20px;
+      }
+      .tab {
+        background: transparent;
+        border: none;
+        color: var(--muted);
+        padding: 10px 14px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+      }
+      .tab.active {
+        color: var(--accent);
+        border-bottom-color: var(--accent);
+      }
+      .tab .badge {
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-size: 11px;
+        padding: 1px 6px;
+        border-radius: 8px;
+        margin-left: 6px;
+        font-weight: 600;
       }
       .status {
-        font-size: 14px;
-        color: var(--muted);
-        min-height: 20px;
-      }
-      .status.error { color: #c53030; }
-      .section-title {
         font-size: 13px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
         color: var(--muted);
-        margin: 32px 0 12px;
+        min-height: 18px;
+        margin-bottom: 8px;
       }
+      .status.error { color: var(--error); }
       .grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
         gap: 16px;
       }
       .card {
@@ -106,10 +148,12 @@
         overflow: hidden;
         display: flex;
         flex-direction: column;
+        position: relative;
       }
       .card.fresh { box-shadow: 0 0 0 2px var(--accent); }
+      .card.error { border-color: var(--error); }
       .card .img-wrap {
-        aspect-ratio: 2 / 3;
+        aspect-ratio: 1 / 1;
         background: #f0eee9;
         position: relative;
         display: flex;
@@ -140,16 +184,20 @@
         overflow: hidden;
         text-overflow: ellipsis;
       }
-      .card a {
-        color: inherit;
-        text-decoration: none;
-      }
-      .pending {
+      .card a { color: inherit; text-decoration: none; }
+      .pending-overlay {
         background: var(--accent-soft);
         color: var(--accent);
-        font-size: 13px;
+        font-size: 12px;
+        padding: 12px;
         text-align: center;
-        padding: 8px 12px;
+      }
+      .error-overlay {
+        background: #fff5f5;
+        color: var(--error);
+        font-size: 12px;
+        padding: 12px;
+        text-align: center;
       }
       .spinner {
         display: inline-block;
@@ -159,62 +207,138 @@
         border-top-color: var(--accent);
         border-radius: 50%;
         animation: spin 0.8s linear infinite;
-        margin-right: 8px;
+        margin-right: 6px;
         vertical-align: -2px;
       }
       @keyframes spin { to { transform: rotate(360deg); } }
       .empty {
         color: var(--muted);
         font-size: 14px;
-        padding: 12px 0;
+        padding: 24px 0;
       }
+      .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+      }
+      .modal {
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        width: 100%;
+        max-width: 360px;
+      }
+      .modal h2 { margin: 0 0 16px; font-size: 20px; }
+      .modal .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+      .modal .field label { font-size: 12px; color: var(--muted); }
+      .modal .actions { display: flex; gap: 8px; justify-content: space-between; align-items: center; margin-top: 16px; }
+      .modal .err { color: var(--error); font-size: 13px; min-height: 18px; }
     </style>
   </head>
   <body>
-    <main>
-      <header>
-        <h1>Wikigraphica</h1>
-        <p class="tagline">Paste a Wikipedia URL or search keywords.</p>
-      </header>
+    <div class="topbar">
+      <div class="brand">Wikigraphica</div>
+      <div class="auth-area" id="auth-area"></div>
+    </div>
 
-      <form id="form">
+    <main>
+      <p class="tagline">Paste a Wikipedia URL — get an infographic.</p>
+
+      <form class="search" id="form">
         <input
           id="q"
           type="text"
           required
-          placeholder="https://en.wikipedia.org/wiki/Octopus  —  or  —  octopus"
+          placeholder="https://en.wikipedia.org/wiki/Octopus"
           autocomplete="off"
           autofocus
         />
-        <button id="submit" type="submit">Go</button>
+        <button id="submit" type="submit">Generate</button>
       </form>
-      <div class="row">
-        <button id="gallery-btn" class="ghost" type="button">View gallery</button>
-        <span id="status" class="status"></span>
+      <div id="status" class="status"></div>
+
+      <div class="tabs">
+        <button class="tab" data-tab="gallery">Gallery</button>
+        <button class="tab" data-tab="queue">My queue <span class="badge" id="queue-badge" hidden>0</span></button>
+        <button class="tab" data-tab="results">Results</button>
       </div>
 
-      <section id="results-section" hidden>
-        <div class="section-title" id="results-label">Results</div>
-        <div id="results" class="grid"></div>
+      <section id="tab-gallery">
+        <div id="gallery" class="grid"></div>
       </section>
 
-      <section id="gallery-section" hidden>
-        <div class="section-title">Recent infographics</div>
-        <div id="gallery" class="grid"></div>
+      <section id="tab-queue" hidden>
+        <div id="queue" class="grid"></div>
+      </section>
+
+      <section id="tab-results" hidden>
+        <div id="results" class="grid"></div>
       </section>
     </main>
 
+    <div id="auth-modal" class="modal-backdrop" hidden>
+      <div class="modal">
+        <h2 id="auth-title">Log in</h2>
+        <form id="auth-form">
+          <div class="field">
+            <label for="auth-username">Username</label>
+            <input id="auth-username" type="text" required autocomplete="username" />
+          </div>
+          <div class="field">
+            <label for="auth-password">Password</label>
+            <input id="auth-password" type="password" required autocomplete="current-password" minlength="6" />
+          </div>
+          <div class="err" id="auth-err"></div>
+          <div class="actions">
+            <button type="button" class="link" id="auth-toggle">Need an account? Sign up</button>
+            <button type="submit" id="auth-submit">Log in</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <script>
-      const form = document.getElementById("form");
-      const qInput = document.getElementById("q");
-      const submitBtn = document.getElementById("submit");
-      const statusEl = document.getElementById("status");
-      const galleryBtn = document.getElementById("gallery-btn");
-      const resultsSection = document.getElementById("results-section");
-      const resultsLabel = document.getElementById("results-label");
-      const resultsEl = document.getElementById("results");
-      const gallerySection = document.getElementById("gallery-section");
-      const galleryEl = document.getElementById("gallery");
+      const $ = (id) => document.getElementById(id);
+      const form = $("form");
+      const qInput = $("q");
+      const submitBtn = $("submit");
+      const statusEl = $("status");
+      const authArea = $("auth-area");
+      const galleryEl = $("gallery");
+      const queueEl = $("queue");
+      const resultsEl = $("results");
+      const queueBadge = $("queue-badge");
+
+      const tabs = {
+        gallery: $("tab-gallery"),
+        queue: $("tab-queue"),
+        results: $("tab-results"),
+      };
+      let currentTab = "gallery";
+      let me = null;
+      let pollTimer = null;
+
+      function setStatus(text, isError = false) {
+        statusEl.className = "status" + (isError ? " error" : "");
+        statusEl.innerHTML = text;
+      }
+
+      function showTab(name) {
+        currentTab = name;
+        for (const [k, el] of Object.entries(tabs)) el.hidden = k !== name;
+        document.querySelectorAll(".tab").forEach((b) => {
+          b.classList.toggle("active", b.dataset.tab === name);
+        });
+        if (name === "gallery") loadGallery();
+        if (name === "queue") loadQueue();
+      }
+      document.querySelectorAll(".tab").forEach((b) =>
+        b.addEventListener("click", () => showTab(b.dataset.tab)),
+      );
 
       function isWikiUrl(s) {
         try {
@@ -225,142 +349,242 @@
         }
       }
 
+      function fmtDate(ts) {
+        return new Date(ts).toLocaleString();
+      }
+
+      function escape(s) {
+        return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+          "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+        }[c]));
+      }
+
       function cardHtml(row, opts = {}) {
         const fresh = opts.fresh ? " fresh" : "";
-        const date = new Date(row.created_at).toLocaleString();
-        const imgSrc = row.image_url || "";
-        const wikiHref = row.wiki_url;
+        const err = row.status === "error" ? " error" : "";
+        const date = fmtDate(row.created_at);
+        const wikiHref = escape(row.wiki_url);
+        const titleText = escape(row.wiki_title || row.wiki_url);
+        const by = row.username ? `by ${escape(row.username)} · ` : "";
+
+        let imgArea;
+        if (row.status === "pending") {
+          imgArea = `<div class="img-wrap"><div class="pending-overlay"><span class="spinner"></span>Generating…</div></div>`;
+        } else if (row.status === "error") {
+          imgArea = `<div class="img-wrap"><div class="error-overlay">Failed: ${escape(row.error || "unknown")}</div></div>`;
+        } else if (row.image_url) {
+          imgArea = `<a class="img-wrap" href="${escape(row.image_url)}" target="_blank" rel="noopener"><img src="${escape(row.image_url)}" alt="${titleText}" loading="lazy" /></a>`;
+        } else {
+          imgArea = `<div class="img-wrap"></div>`;
+        }
+
         return `
-          <div class="card${fresh}" data-id="${row.id}">
-            <a class="img-wrap" href="${imgSrc}" target="_blank" rel="noopener">
-              <img src="${imgSrc}" alt="${row.wiki_title}" />
-            </a>
+          <div class="card${fresh}${err}" data-id="${escape(row.id)}">
+            ${imgArea}
             <div class="meta">
-              <div class="title"><a href="${wikiHref}" target="_blank" rel="noopener">${row.wiki_title}</a></div>
-              <div class="sub">${date}</div>
+              <div class="title"><a href="${wikiHref}" target="_blank" rel="noopener">${titleText}</a></div>
+              <div class="sub">${by}${date}</div>
             </div>
           </div>
         `;
       }
 
-      function pendingCardHtml() {
-        return `
-          <div class="card" id="pending-card">
-            <div class="img-wrap">
-              <div class="pending"><span class="spinner"></span>Generating new infographic…</div>
-            </div>
-            <div class="meta">
-              <div class="title">New generation</div>
-              <div class="sub">~15–30s</div>
-            </div>
-          </div>
-        `;
+      async function loadMe() {
+        try {
+          const r = await fetch("/auth/me");
+          const d = await r.json();
+          me = d.user;
+        } catch {
+          me = null;
+        }
+        renderAuthArea();
+        return me;
       }
 
-      function renderResults(rows, { withPending = false } = {}) {
-        resultsSection.hidden = false;
-        const cards = rows.map((r, i) => cardHtml(r, { fresh: i === 0 && withPending === false ? false : false }));
-        resultsEl.innerHTML = (withPending ? pendingCardHtml() : "") + cards.join("");
+      function renderAuthArea() {
+        if (me) {
+          authArea.innerHTML = `<span class="who">${escape(me.username)}</span><button class="ghost" id="logout">Log out</button>`;
+          $("logout").addEventListener("click", logout);
+        } else {
+          authArea.innerHTML = `<button class="ghost" id="login">Log in</button>`;
+          $("login").addEventListener("click", () => openAuth("login"));
+        }
       }
 
-      function setStatus(text, isError = false) {
-        statusEl.className = "status" + (isError ? " error" : "");
-        statusEl.innerHTML = text;
+      // Auth modal
+      let authMode = "login";
+      function openAuth(mode) {
+        authMode = mode;
+        $("auth-title").textContent = mode === "login" ? "Log in" : "Sign up";
+        $("auth-submit").textContent = mode === "login" ? "Log in" : "Sign up";
+        $("auth-toggle").textContent =
+          mode === "login" ? "Need an account? Sign up" : "Have an account? Log in";
+        $("auth-err").textContent = "";
+        $("auth-modal").hidden = false;
+        $("auth-username").focus();
+      }
+      function closeAuth() {
+        $("auth-modal").hidden = true;
+        $("auth-form").reset();
+      }
+      $("auth-toggle").addEventListener("click", () =>
+        openAuth(authMode === "login" ? "signup" : "login"),
+      );
+      $("auth-modal").addEventListener("click", (e) => {
+        if (e.target.id === "auth-modal") closeAuth();
+      });
+      $("auth-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const username = $("auth-username").value.trim();
+        const password = $("auth-password").value;
+        $("auth-err").textContent = "";
+        try {
+          const path = authMode === "login" ? "/auth/login" : "/auth/signup";
+          const r = await fetch(path, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password }),
+          });
+          const d = await r.json();
+          if (!r.ok) throw new Error(d.error || "failed");
+          me = d.user;
+          renderAuthArea();
+          closeAuth();
+          loadGallery();
+        } catch (err) {
+          $("auth-err").textContent = err.message;
+        }
+      });
+
+      async function logout() {
+        await fetch("/auth/logout", { method: "POST" });
+        me = null;
+        renderAuthArea();
+        if (currentTab === "queue") showTab("gallery");
       }
 
       async function loadGallery() {
-        gallerySection.hidden = false;
-        galleryEl.innerHTML = '<div class="empty">Loading…</div>';
         try {
-          const res = await fetch("/gallery");
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || "failed");
-          if (!data.results.length) {
-            galleryEl.innerHTML = '<div class="empty">No infographics yet. Generate one above.</div>';
+          const r = await fetch("/gallery");
+          const d = await r.json();
+          if (!d.results.length) {
+            galleryEl.innerHTML = '<div class="empty">No infographics yet. Paste a Wikipedia URL above to make the first one.</div>';
             return;
           }
-          galleryEl.innerHTML = data.results.map((r) => cardHtml(r)).join("");
+          galleryEl.innerHTML = d.results.map((row) => cardHtml(row)).join("");
         } catch (err) {
-          galleryEl.innerHTML = `<div class="empty">Error: ${err.message}</div>`;
+          galleryEl.innerHTML = `<div class="empty">Error: ${escape(err.message)}</div>`;
         }
       }
 
-      galleryBtn.addEventListener("click", () => {
-        if (gallerySection.hidden) {
-          galleryBtn.textContent = "Hide gallery";
-          loadGallery();
-        } else {
-          gallerySection.hidden = true;
-          galleryBtn.textContent = "View gallery";
+      async function loadQueue() {
+        if (!me) {
+          queueEl.innerHTML = '<div class="empty">Log in to see your generations.</div>';
+          updateQueueBadge(0);
+          return;
         }
-      });
+        try {
+          const r = await fetch("/queue");
+          const d = await r.json();
+          if (!r.ok) throw new Error(d.error || "failed");
+          if (!d.results.length) {
+            queueEl.innerHTML = '<div class="empty">Nothing yet. Paste a Wikipedia URL above.</div>';
+            updateQueueBadge(0);
+            return;
+          }
+          queueEl.innerHTML = d.results.map((row) => cardHtml(row)).join("");
+          const pending = d.results.filter((r) => r.status === "pending").length;
+          updateQueueBadge(pending);
+          managePolling(pending > 0);
+        } catch (err) {
+          queueEl.innerHTML = `<div class="empty">Error: ${escape(err.message)}</div>`;
+        }
+      }
+
+      function updateQueueBadge(n) {
+        if (n > 0) {
+          queueBadge.textContent = n;
+          queueBadge.hidden = false;
+        } else {
+          queueBadge.hidden = true;
+        }
+      }
+
+      function managePolling(hasPending) {
+        if (hasPending && !pollTimer) {
+          pollTimer = setInterval(() => {
+            loadQueue();
+            if (currentTab === "gallery") loadGallery();
+          }, 3000);
+        } else if (!hasPending && pollTimer) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+        }
+      }
 
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
         const q = qInput.value.trim();
         if (!q) return;
 
+        if (!me) {
+          openAuth("login");
+          return;
+        }
+        if (!isWikiUrl(q)) {
+          setStatus("Please enter a Wikipedia article URL (https://…wikipedia.org/wiki/…).", true);
+          return;
+        }
+
         submitBtn.disabled = true;
-        submitBtn.textContent = "Working…";
-        setStatus("");
-        resultsEl.innerHTML = "";
-        resultsSection.hidden = true;
+        setStatus(`<span class="spinner"></span>Queued ${escape(q)}…`);
 
         try {
-          if (isWikiUrl(q)) {
-            resultsLabel.textContent = "Cached + generating…";
-            const cachedPromise = fetch("/by-url?url=" + encodeURIComponent(q))
-              .then((r) => r.json())
-              .catch(() => ({ results: [] }));
-            const generatingPromise = fetch("/generate", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ url: q }),
-            }).then(async (r) => {
-              const d = await r.json();
-              if (!r.ok) throw new Error(d.error || "generate failed");
-              return d;
-            });
+          const cachedPromise = fetch("/by-url?url=" + encodeURIComponent(q))
+            .then((r) => r.json())
+            .catch(() => ({ results: [] }));
 
-            const cached = await cachedPromise;
-            renderResults(cached.results || [], { withPending: true });
-            setStatus(
-              cached.results?.length
-                ? `Showing ${cached.results.length} cached. New one generating in background.`
-                : "No cached versions. Generating fresh — ~15–30s.",
-            );
-
-            try {
-              const fresh = await generatingPromise;
-              const pending = document.getElementById("pending-card");
-              if (pending) pending.remove();
-              resultsEl.insertAdjacentHTML("afterbegin", cardHtml(fresh, { fresh: true }));
-              resultsLabel.textContent = "Results";
-              setStatus("Done.");
-            } catch (err) {
-              const pending = document.getElementById("pending-card");
-              if (pending) pending.remove();
-              setStatus("Generation failed: " + err.message, true);
+          const r = await fetch("/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: q }),
+          });
+          const d = await r.json();
+          if (!r.ok) {
+            if (r.status === 401) {
+              openAuth("login");
+              setStatus("");
+              return;
             }
-          } else {
-            resultsLabel.textContent = `Search results for "${q}"`;
-            const res = await fetch("/search?q=" + encodeURIComponent(q));
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "search failed");
-            renderResults(data.results || []);
-            setStatus(
-              data.results?.length
-                ? `${data.results.length} match${data.results.length === 1 ? "" : "es"}.`
-                : "No matches. Paste a Wikipedia URL to generate one.",
-            );
+            throw new Error(d.error || "failed");
           }
+
+          qInput.value = "";
+
+          const cached = (await cachedPromise).results || [];
+          const fresh = d.infographic;
+          const cards = [fresh, ...cached].filter(Boolean);
+          resultsEl.innerHTML = cards.map((row, i) => cardHtml(row, { fresh: i === 0 })).join("");
+          showTab("results");
+          setStatus(
+            cached.length
+              ? `Generating new infographic. ${cached.length} cached version${cached.length === 1 ? "" : "s"} shown below.`
+              : `Generating new infographic — usually 5–10s.`,
+          );
+
+          managePolling(true);
+          loadQueue();
         } catch (err) {
           setStatus("Error: " + err.message, true);
         } finally {
           submitBtn.disabled = false;
-          submitBtn.textContent = "Go";
         }
       });
+
+      (async function init() {
+        await loadMe();
+        showTab("gallery");
+      })();
     </script>
   </body>
 </html>
