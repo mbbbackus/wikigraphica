@@ -569,8 +569,20 @@
         queue: $("tab-queue"),
         results: $("tab-results"),
       };
+      const tabButtons = Object.fromEntries(
+        Object.keys(tabs).map((name) => [
+          name,
+          document.querySelector(`.tab[data-tab="${name}"]`),
+        ]),
+      );
       const DEFAULT_PLACEHOLDER = "https://en.wikipedia.org/wiki/Octopus";
-      let currentTab = "graph";
+      let currentTab = "gallery";
+      let resultsTabUsed = false;
+      function setResultsTabUsed(v) {
+        resultsTabUsed = v;
+        if (tabButtons.results) tabButtons.results.hidden = !v;
+      }
+      setResultsTabUsed(false);
       let currentResultsUrl = null;
       let pollTimer = null;
 
@@ -637,6 +649,7 @@
       }
 
       function showTab(name) {
+        if (name === "results" && !resultsTabUsed) name = "gallery";
         currentTab = name;
         for (const [k, el] of Object.entries(tabs)) el.hidden = k !== name;
         document.querySelectorAll(".tab").forEach((b) => {
@@ -684,6 +697,7 @@
           }
           currentResultsUrl = wikiUrl;
           qInput.placeholder = wikiUrl;
+          setResultsTabUsed(true);
           showTab("results");
           setStatus("");
           if (d.results.some((r) => r.status === "pending")) managePolling(true);
@@ -970,10 +984,6 @@
         setStatus(`<span class="spinner"></span>Queued…`);
 
         try {
-          const cachedPromise = fetch("/by-url?url=" + encodeURIComponent(q))
-            .then((r) => r.json())
-            .catch(() => ({ results: [] }));
-
           const r = await fetch("/generate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -982,22 +992,10 @@
           const d = await r.json();
           if (!r.ok) throw new Error(d.error || "failed");
 
-          const fresh = d.infographic;
-          if (fresh?.id) addMyId(fresh.id);
+          if (d.infographic?.id) addMyId(d.infographic.id);
           qInput.value = "";
-
-          const cached = (await cachedPromise).results || [];
-          const cards = [fresh, ...cached].filter(Boolean);
-          resultsEl.innerHTML = cards
-            .map((row, i) => cardHtml(row, { fresh: i === 0 }))
-            .join("");
-          showTab("results");
-          setStatus(
-            cached.length
-              ? `Generating new infographic. ${cached.length} cached version${cached.length === 1 ? "" : "s"} below.`
-              : `Generating new infographic — usually 30–40s.`,
-          );
-
+          setStatus("");
+          showTab("queue");
           managePolling(true);
         } catch (err) {
           setStatus("Error: " + err.message, true);
@@ -1080,17 +1078,78 @@
 
         if (graphSimulation) graphSimulation.stop();
         if (graphCursorsTimer) clearTimeout(graphCursorsTimer);
-        if (graphRotationRaf) cancelAnimationFrame(graphRotationRaf);
 
         const svg = d3.select(svgEl);
         svg.selectAll("*").remove();
 
-        const rotateRoot = svg.append("g").attr("class", "rotate-root");
-        const root = rotateRoot.append("g").attr("class", "zoom-root");
+        const root = svg.append("g").attr("class", "graph-root");
+        const mapLayer = root.append("g").attr("class", "map");
         const linkLayer = root.append("g").attr("class", "links")
-          .attr("stroke", "#94a3b8").attr("stroke-opacity", 0.25);
+          .attr("stroke", "#000").attr("stroke-opacity", 0.18);
         const nodeLayer = root.append("g").attr("class", "nodes");
         const iconLayer = root.append("g").attr("class", "icon-overlays");
+
+        // Map background: graph-paper grid + colored territory polygons per parent category
+        const gridSpacing = 60;
+        for (let gx = 0; gx < w; gx += gridSpacing) {
+          mapLayer
+            .append("line")
+            .attr("x1", gx)
+            .attr("y1", 0)
+            .attr("x2", gx)
+            .attr("y2", h)
+            .attr("stroke", "#000")
+            .attr("stroke-opacity", 0.07)
+            .attr("stroke-width", 0.6);
+        }
+        for (let gy = 0; gy < h; gy += gridSpacing) {
+          mapLayer
+            .append("line")
+            .attr("x1", 0)
+            .attr("y1", gy)
+            .attr("x2", w)
+            .attr("y2", gy)
+            .attr("stroke", "#000")
+            .attr("stroke-opacity", 0.07)
+            .attr("stroke-width", 0.6);
+        }
+        const territoryGroup = mapLayer.append("g").attr("class", "territories");
+        const territories = territoryGroup
+          .selectAll("path")
+          .data(parentCats.filter((c) => c != null))
+          .join("path")
+          .attr("class", "territory")
+          .attr("fill", (c) => CATEGORY_META[c]?.color || UNCATEGORIZED_COLOR)
+          .attr("fill-opacity", 0.13)
+          .attr("stroke", "#000")
+          .attr("stroke-width", 2)
+          .attr("stroke-opacity", 0.35)
+          .attr("stroke-linejoin", "round");
+
+        function expandHull(points, padding = 28) {
+          // Compute centroid and push each hull vertex outward by `padding`
+          if (!points || points.length < 3) return null;
+          let cx0 = 0, cy0 = 0;
+          for (const p of points) { cx0 += p[0]; cy0 += p[1]; }
+          cx0 /= points.length; cy0 /= points.length;
+          return points.map(([px, py]) => {
+            const dx = px - cx0, dy = py - cy0;
+            const d = Math.hypot(dx, dy) || 1;
+            return [px + (dx / d) * padding, py + (dy / d) * padding];
+          });
+        }
+        function updateTerritories() {
+          territories.attr("d", (parent) => {
+            const pts = nodes
+              .filter((n) => n.parentCat === parent && nodeIsVisible(n))
+              .map((n) => [n.x, n.y]);
+            if (pts.length < 3) return null;
+            const hull = d3.polygonHull(pts);
+            if (!hull) return null;
+            const expanded = expandHull(hull, 32);
+            return "M" + expanded.map((p) => p.join(",")).join("L") + "Z";
+          });
+        }
 
         const link = linkLayer
           .selectAll("line")
@@ -1238,12 +1297,7 @@
           });
         node.call(drag);
 
-        // Zoom / pan
-        const zoom = d3.zoom()
-          .scaleExtent([0.2, 6])
-          .filter((event) => !event.target.matches("circle"))
-          .on("zoom", (event) => root.attr("transform", event.transform));
-        svg.call(zoom);
+        // (Zoom / pan disabled — graph is a static map.)
 
         // Apply current legend filters (filter by PARENT)
         function applyVisibility() {
@@ -1284,22 +1338,10 @@
               .selectAll(".icon-wrap")
               .attr("x", (d) => d.x - EXPANDED_SIZE / 2)
               .attr("y", (d) => d.y - EXPANDED_SIZE / 2);
+            updateTerritories();
           });
 
         applyVisibility();
-
-        // Slow rotation of the entire graph (~ 8 minutes per full turn)
-        let rotAngle = 0;
-        let lastT = performance.now();
-        const DEG_PER_SEC = 360 / 480;
-        function spin(now) {
-          const dt = (now - lastT) / 1000;
-          lastT = now;
-          rotAngle = (rotAngle + DEG_PER_SEC * dt) % 360;
-          rotateRoot.attr("transform", `rotate(${rotAngle} ${cx} ${cy})`);
-          graphRotationRaf = requestAnimationFrame(spin);
-        }
-        graphRotationRaf = requestAnimationFrame(spin);
 
         // Dim any expanded rectangle the user's cursor moves over so they can
         // see nodes underneath and hover them. Pointer-events on the rectangle
@@ -1430,11 +1472,11 @@
           showTab(tabParam);
           return;
         }
-        if (saved && tabs[saved]) {
+        if (saved && tabs[saved] && saved !== "results") {
           showTab(saved);
           return;
         }
-        showTab("graph");
+        showTab("gallery");
       }
       window.addEventListener("popstate", () => init());
       if (document.readyState === "loading") {
