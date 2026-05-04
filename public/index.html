@@ -943,13 +943,16 @@
       let lastStructureUrl = null;
       let versionIndex = 0;
       let versionIndexUrl = null;
+      let versionIndexAuto = true; // true = pin to newest until user moves
 
       function computeVersions(data) {
         const overviews = data.overview_infographics || [];
         const sections = data.sections || [];
-        const batchIds = new Map(); // id -> { id, latest, count }
+        const batchIds = new Map();
         const touch = (row) => {
-          const key = row.batch_id || `legacy-${row.id}`;
+          // All pre-batch_id rows collapse into a single "legacy" batch so the
+          // user sees one coherent legacy version, not one per row.
+          const key = row.batch_id || "legacy";
           const existing = batchIds.get(key);
           if (!existing) {
             batchIds.set(key, {
@@ -967,13 +970,15 @@
         };
         for (const ov of overviews) touch(ov);
         for (const sec of sections) for (const i of sec.infographics || []) touch(i);
-        return Array.from(batchIds.values()).sort((a, b) => b.latest - a.latest);
+        // Oldest-first so version 1 = oldest, last = newest (newest is default)
+        return Array.from(batchIds.values()).sort((a, b) => a.latest - b.latest);
       }
 
       function changeVersion(delta) {
         if (!lastStructureData) return;
         const versions = computeVersions(lastStructureData);
         if (versions.length < 2) return;
+        versionIndexAuto = false;
         versionIndex = Math.max(0, Math.min(versions.length - 1, versionIndex + delta));
         renderStructuredResults(lastStructureData, lastStructureUrl);
       }
@@ -996,7 +1001,9 @@
 
         // Versioning: pick a batch and show only its rows
         const versions = computeVersions(data);
-        if (versionIndex >= versions.length) versionIndex = 0;
+        if (versionIndexAuto || versionIndex < 0 || versionIndex >= versions.length) {
+          versionIndex = Math.max(0, versions.length - 1);
+        }
         const selectedVersion = versions[versionIndex];
         const selectedKey = selectedVersion?.id ?? null;
         const inSelected = (row) => {
@@ -1113,7 +1120,8 @@
           })
           .join("");
 
-        // Version switcher bar — sits between the lead/infobox row and the sections grid
+        // Version switcher bar — between the lead/infobox row and the sections grid.
+        // Versions sorted oldest→newest. Index 0 = oldest. Latest = default.
         let versionBarHtml = "";
         if (versions.length > 0) {
           const v = versions[versionIndex];
@@ -1123,15 +1131,16 @@
               })
             : "";
           const catLabel = v.category ? CATEGORY_META[v.category]?.label || v.category : "—";
+          const tag = v.isLegacy ? " · legacy" : versionIndex === versions.length - 1 ? " · latest" : "";
           versionBarHtml = `
             <div class="version-bar">
               <div>
                 <span class="v-info">Version ${versionIndex + 1} of ${versions.length}</span>
-                <span class="v-meta">${escape(catLabel)} · ${escape(dateStr)}${v.isLegacy ? " · legacy" : ""}</span>
+                <span class="v-meta">${escape(catLabel)} · ${escape(dateStr)}${escape(tag)}</span>
               </div>
               <div class="v-controls">
-                <button class="v-prev" ${versionIndex >= versions.length - 1 ? "disabled" : ""}>← older</button>
-                <button class="v-next" ${versionIndex <= 0 ? "disabled" : ""}>newer →</button>
+                <button class="v-older" ${versionIndex <= 0 ? "disabled" : ""}>← previous</button>
+                <button class="v-newer" ${versionIndex >= versions.length - 1 ? "disabled" : ""}>next →</button>
               </div>
             </div>`;
         }
@@ -1166,7 +1175,7 @@
           lastStructureData = d;
           lastStructureUrl = wikiUrl;
           if (versionIndexUrl !== wikiUrl) {
-            versionIndex = 0;
+            versionIndexAuto = true;
             versionIndexUrl = wikiUrl;
           }
           renderStructuredResults(d, wikiUrl);
@@ -1190,14 +1199,14 @@
       }
 
       resultsStructuredEl.addEventListener("click", (e) => {
-        if (e.target.closest(".v-prev")) {
+        if (e.target.closest(".v-older")) {
           e.preventDefault();
-          changeVersion(1); // older
+          changeVersion(-1); // older = lower index
           return;
         }
-        if (e.target.closest(".v-next")) {
+        if (e.target.closest(".v-newer")) {
           e.preventDefault();
-          changeVersion(-1); // newer
+          changeVersion(1); // newer = higher index
           return;
         }
         const el = e.target.closest("[data-img]");
