@@ -1,0 +1,2 @@
+# wikigraphica
+Wikipedia for infographics
