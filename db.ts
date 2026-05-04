@@ -61,6 +61,8 @@ if (!colNames.has("category")) db.exec("alter table infographics add column cate
 if (!colNames.has("page_id")) db.exec("alter table infographics add column page_id text");
 if (!colNames.has("section_id")) db.exec("alter table infographics add column section_id text");
 if (!colNames.has("kind")) db.exec("alter table infographics add column kind text");
+if (!colNames.has("batch_id")) db.exec("alter table infographics add column batch_id text");
+db.exec("create index if not exists infographics_batch_idx on infographics(batch_id)");
 
 export type Infographic = {
   id: string;
@@ -82,6 +84,7 @@ export type Infographic = {
   page_id: string | null;
   section_id: string | null;
   kind: string | null;
+  batch_id: string | null;
 };
 
 export type WikiPage = {
@@ -116,17 +119,17 @@ export function viewInfographic(row: Infographic): InfographicView {
 }
 
 export const queries = {
-  insertInfographic: db.prepare<unknown, [string, string, number]>(
-    "insert into infographics (id, wiki_url, created_at) values (?, ?, ?)",
+  insertInfographic: db.prepare<unknown, [string, string, number, string]>(
+    "insert into infographics (id, wiki_url, created_at, batch_id) values (?, ?, ?, ?)",
   ),
   insertInfographicForSection: db.prepare<
     unknown,
-    [string, string, string, string, string, number]
+    [string, string, string, string, string, number, string]
   >(
-    "insert into infographics (id, wiki_url, page_id, section_id, kind, created_at) values (?, ?, ?, ?, ?, ?)",
+    "insert into infographics (id, wiki_url, page_id, section_id, kind, created_at, batch_id) values (?, ?, ?, ?, ?, ?, ?)",
   ),
-  insertInfographicForPage: db.prepare<unknown, [string, string, string, string, number]>(
-    "insert into infographics (id, wiki_url, page_id, kind, created_at) values (?, ?, ?, ?, ?)",
+  insertInfographicForPage: db.prepare<unknown, [string, string, string, string, number, string]>(
+    "insert into infographics (id, wiki_url, page_id, kind, created_at, batch_id) values (?, ?, ?, ?, ?, ?)",
   ),
   upsertWikiPage: db.prepare<
     unknown,

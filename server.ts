@@ -121,6 +121,7 @@ async function processInBackground(
       summary,
       categoryKey,
       style,
+      batchId: infographicId,
     }).catch((err) =>
       console.warn(`fan-out failed for ${wikiUrl}:`, err),
     );
@@ -137,8 +138,9 @@ async function fanOutSectionsAndInfobox(args: {
   summary: { title: string; description?: string; extract: string };
   categoryKey: string | null;
   style: string | undefined;
+  batchId: string;
 }) {
-  const { wikiUrl, lang, summary, categoryKey, style } = args;
+  const { wikiUrl, lang, summary, categoryKey, style, batchId } = args;
   const structure = await fetchPageStructure(lang, summary.title);
   const pageId = wikiUrl;
   queries.upsertWikiPage.run(
@@ -175,6 +177,7 @@ async function fanOutSectionsAndInfobox(args: {
       sectionId,
       "infobox",
       Date.now(),
+      batchId,
     );
     const isPlace =
       categoryKey === "place" ||
@@ -217,6 +220,7 @@ async function fanOutSectionsAndInfobox(args: {
       sectionId,
       "section",
       Date.now(),
+      batchId,
     );
     const prompt = buildSectionPrompt({
       pageTitle: summary.title,
@@ -247,6 +251,7 @@ async function fanOutSectionsAndInfobox(args: {
         sectionId,
         "section_icon",
         Date.now(),
+        batchId,
       );
       const iconPrompt = `A single minimal pictogram representing the concept of "${sec.title}". Solid black silhouette or symbol centered on a pure white background. Public-signage glyph clarity, like an Olympic pictogram or museum wayfinding icon. No text, no labels, no border, no decorative elements. Strong negative space and generous white margins. Single shape only.`;
       generateOne(iconId, iconPrompt, {
@@ -286,7 +291,8 @@ const server = Bun.serve({
         const body = (await req.json()) as { url: string; category?: string | null };
         const { canonical } = parseWikipediaUrl(body.url);
         const id = crypto.randomUUID();
-        queries.insertInfographic.run(id, canonical, Date.now());
+        // The overview's id IS the batch id — every fan-out child shares it.
+        queries.insertInfographic.run(id, canonical, Date.now(), id);
         processInBackground(id, canonical, body.category ?? null);
         const row = queries.getById.get(id);
         return Response.json({ infographic: row ? viewInfographic(row) : null });

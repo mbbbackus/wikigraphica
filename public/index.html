@@ -429,7 +429,6 @@
         gap: 24px;
         margin-bottom: 32px;
       }
-      .results-structured .lead-wrap { position: relative; }
       .results-structured .lead-overview {
         border: var(--bw) solid #000;
         box-shadow: var(--shadow-lg);
@@ -440,22 +439,37 @@
         position: relative;
         display: block;
       }
-      .results-structured .lead-versions {
+      .results-structured .version-bar {
         display: flex;
         align-items: center;
+        justify-content: space-between;
         gap: 12px;
-        margin-top: 12px;
+        margin: 8px 0 24px;
+        padding: 10px 14px;
+        border: var(--bw) solid #000;
+        background: var(--card);
+        border-radius: 8px;
+        box-shadow: var(--shadow-sm);
+      }
+      .results-structured .version-bar .v-info {
         font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
       }
-      .results-structured .lead-versions .v-info {
-        font-weight: 600;
-      }
-      .results-structured .lead-versions .v-meta {
+      .results-structured .version-bar .v-meta {
         color: var(--muted);
-        font-weight: 400;
+        font-weight: 500;
+        text-transform: none;
+        letter-spacing: 0;
+        margin-left: 10px;
       }
-      .results-structured .lead-versions button {
-        padding: 6px 10px;
+      .results-structured .version-bar .v-controls {
+        display: flex;
+        gap: 6px;
+      }
+      .results-structured .version-bar button {
+        padding: 6px 12px;
         font-size: 13px;
         font-weight: 700;
         background: #000;
@@ -464,8 +478,8 @@
         border-radius: 6px;
         cursor: pointer;
       }
-      .results-structured .lead-versions button:disabled {
-        opacity: 0.35;
+      .results-structured .version-bar button:disabled {
+        opacity: 0.3;
         cursor: not-allowed;
       }
       .results-structured .lead-regen-badge {
@@ -927,15 +941,40 @@
       const openSections = new Set();
       let lastStructureData = null;
       let lastStructureUrl = null;
-      let leadIndex = 0;
-      let leadIndexUrl = null;
-      function changeLead(delta) {
+      let versionIndex = 0;
+      let versionIndexUrl = null;
+
+      function computeVersions(data) {
+        const overviews = data.overview_infographics || [];
+        const sections = data.sections || [];
+        const batchIds = new Map(); // id -> { id, latest, count }
+        const touch = (row) => {
+          const key = row.batch_id || `legacy-${row.id}`;
+          const existing = batchIds.get(key);
+          if (!existing) {
+            batchIds.set(key, {
+              id: key,
+              latest: row.created_at || 0,
+              count: 1,
+              category: row.category || null,
+              isLegacy: !row.batch_id,
+            });
+          } else {
+            existing.latest = Math.max(existing.latest, row.created_at || 0);
+            existing.count++;
+            if (!existing.category && row.category) existing.category = row.category;
+          }
+        };
+        for (const ov of overviews) touch(ov);
+        for (const sec of sections) for (const i of sec.infographics || []) touch(i);
+        return Array.from(batchIds.values()).sort((a, b) => b.latest - a.latest);
+      }
+
+      function changeVersion(delta) {
         if (!lastStructureData) return;
-        const dones = (lastStructureData.overview_infographics || []).filter(
-          (i) => i.status === "done" && i.image_url,
-        );
-        if (dones.length < 2) return;
-        leadIndex = Math.max(0, Math.min(dones.length - 1, leadIndex + delta));
+        const versions = computeVersions(lastStructureData);
+        if (versions.length < 2) return;
+        versionIndex = Math.max(0, Math.min(versions.length - 1, versionIndex + delta));
         renderStructuredResults(lastStructureData, lastStructureUrl);
       }
       resultsStructuredEl.addEventListener(
@@ -954,14 +993,22 @@
       function renderStructuredResults(data, fallbackUrl) {
         const overviews = data.overview_infographics || [];
         const sections = data.sections || [];
-        const dones = overviews.filter(
-          (i) => i.status === "done" && i.image_url,
-        );
-        const latestPending = overviews.find((i) => i.status === "pending");
-        const latestDone = dones[0];
-        if (leadIndex >= dones.length) leadIndex = 0;
-        const selectedDone = dones[leadIndex] ?? null;
-        const lead = selectedDone || overviews[0];
+
+        // Versioning: pick a batch and show only its rows
+        const versions = computeVersions(data);
+        if (versionIndex >= versions.length) versionIndex = 0;
+        const selectedVersion = versions[versionIndex];
+        const selectedKey = selectedVersion?.id ?? null;
+        const inSelected = (row) => {
+          if (!selectedKey) return true;
+          const key = row.batch_id || `legacy-${row.id}`;
+          return key === selectedKey;
+        };
+
+        const overviewsInVersion = overviews.filter(inSelected);
+        const lead = overviewsInVersion.find((i) => i.status === "done" && i.image_url) || overviewsInVersion[0];
+        const latestPending = overviewsInVersion.find((i) => i.status === "pending");
+        const selectedDone = lead && lead.status === "done" ? lead : null;
         const overviewCategory = overviews.find((i) => i.category)?.category;
         const parentCat = parentOf(overviewCategory) ?? overviewCategory;
         const pageIcon = CATEGORY_META[parentCat]?.icon || "note";
@@ -972,50 +1019,31 @@
           "Result";
         const fallbackDesc = data.page?.wiki_description || lead?.wiki_description || "";
 
-        // Lead image: always use the SELECTED done overview (carousel position).
-        // Show a "Regenerating…" badge on top whenever there's an in-flight gen.
-        let leadInner;
+        // Lead image for the selected version — overlay regen badge if any
+        // overview in this version is still pending.
+        let leadHtml;
         if (selectedDone) {
-          leadInner = `<a class="lead-overview" data-img="${escape(selectedDone.image_url)}">
-                        <img src="${escape(selectedDone.image_url)}" alt="${escape(fallbackTitle)}" />
-                        ${latestPending ? `<div class="lead-regen-badge"><span class="spinner"></span>Regenerating…</div>` : ""}
-                      </a>`;
+          leadHtml = `<a class="lead-overview" data-img="${escape(selectedDone.image_url)}">
+                       <img src="${escape(selectedDone.image_url)}" alt="${escape(fallbackTitle)}" />
+                       ${latestPending ? `<div class="lead-regen-badge"><span class="spinner"></span>Regenerating…</div>` : ""}
+                     </a>`;
         } else {
-          leadInner = `<div class="lead-overview"><div class="placeholder">${
+          leadHtml = `<div class="lead-overview"><div class="placeholder">${
             latestPending
               ? '<span class="spinner"></span>Generating overview…'
               : lead && lead.status === "error"
               ? "Overview failed"
-              : "No overview yet — paste a URL above to make one."
+              : "Empty in this version."
           }</div></div>`;
         }
 
-        // Carousel controls + version chip if there are multiple done overviews.
-        let versionsHtml = "";
-        if (dones.length > 1) {
-          const cur = dones[leadIndex];
-          const cat = cur?.category || "default";
-          const dateStr = cur?.created_at
-            ? new Date(cur.created_at).toLocaleString(undefined, {
-                month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
-              })
-            : "";
-          versionsHtml = `
-            <div class="lead-versions">
-              <button class="lead-prev" ${leadIndex >= dones.length - 1 ? "disabled" : ""}>←</button>
-              <span class="v-info">Version ${leadIndex + 1} of ${dones.length}</span>
-              <button class="lead-next" ${leadIndex <= 0 ? "disabled" : ""}>→</button>
-              <span class="v-meta">${escape(cat)} · ${escape(dateStr)}</span>
-            </div>`;
-        }
-        const leadHtml = `<div class="lead-wrap">${leadInner}${versionsHtml}</div>`;
-
-        // Prefer the generated infobox infographic image. Fall back to raw KV list.
+        // Prefer the generated infobox infographic image (filtered to current version).
         const infoboxSection = sections.find((s) => s.kind === "infobox");
+        const infoboxRowsInVersion = (infoboxSection?.infographics ?? []).filter(inSelected);
         const infoboxImg =
-          infoboxSection?.infographics?.find((i) => i.status === "done") ?? null;
+          infoboxRowsInVersion.find((i) => i.status === "done") ?? null;
         const infoboxPending =
-          infoboxSection?.infographics?.find((i) => i.status === "pending") ?? null;
+          infoboxRowsInVersion.find((i) => i.status === "pending") ?? null;
         const infobox = data.page?.infobox;
         let infoboxHtml;
         if (infoboxImg && infoboxImg.image_url) {
@@ -1042,10 +1070,11 @@
         const sectionHtml = sections
           .filter((s) => s.kind !== "infobox")
           .map((s) => {
-            const sectionInfos = (s.infographics || []).filter(
+            const versionFiltered = (s.infographics || []).filter(inSelected);
+            const sectionInfos = versionFiltered.filter(
               (i) => i.kind !== "section_icon",
             );
-            const sectionIcon = (s.infographics || []).find(
+            const sectionIcon = versionFiltered.find(
               (i) => i.kind === "section_icon" && i.status === "done",
             );
             const done = sectionInfos.find((i) => i.status === "done");
@@ -1084,6 +1113,29 @@
           })
           .join("");
 
+        // Version switcher bar — sits between the lead/infobox row and the sections grid
+        let versionBarHtml = "";
+        if (versions.length > 0) {
+          const v = versions[versionIndex];
+          const dateStr = v.latest
+            ? new Date(v.latest).toLocaleString(undefined, {
+                month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+              })
+            : "";
+          const catLabel = v.category ? CATEGORY_META[v.category]?.label || v.category : "—";
+          versionBarHtml = `
+            <div class="version-bar">
+              <div>
+                <span class="v-info">Version ${versionIndex + 1} of ${versions.length}</span>
+                <span class="v-meta">${escape(catLabel)} · ${escape(dateStr)}${v.isLegacy ? " · legacy" : ""}</span>
+              </div>
+              <div class="v-controls">
+                <button class="v-prev" ${versionIndex >= versions.length - 1 ? "disabled" : ""}>← older</button>
+                <button class="v-next" ${versionIndex <= 0 ? "disabled" : ""}>newer →</button>
+              </div>
+            </div>`;
+        }
+
         const sectionsBlock =
           sections.filter((s) => s.kind !== "infobox").length > 0
             ? `<div class="sections-grid">${sectionHtml}</div>`
@@ -1098,6 +1150,7 @@
             ${leadHtml}
             ${infoboxHtml}
           </div>
+          ${versionBarHtml}
           ${sectionsBlock}
         `;
       }
@@ -1112,9 +1165,9 @@
 
           lastStructureData = d;
           lastStructureUrl = wikiUrl;
-          if (leadIndexUrl !== wikiUrl) {
-            leadIndex = 0;
-            leadIndexUrl = wikiUrl;
+          if (versionIndexUrl !== wikiUrl) {
+            versionIndex = 0;
+            versionIndexUrl = wikiUrl;
           }
           renderStructuredResults(d, wikiUrl);
           resultsStructuredEl.hidden = false;
@@ -1137,14 +1190,14 @@
       }
 
       resultsStructuredEl.addEventListener("click", (e) => {
-        if (e.target.closest(".lead-prev")) {
+        if (e.target.closest(".v-prev")) {
           e.preventDefault();
-          changeLead(1); // older
+          changeVersion(1); // older
           return;
         }
-        if (e.target.closest(".lead-next")) {
+        if (e.target.closest(".v-next")) {
           e.preventDefault();
-          changeLead(-1); // newer
+          changeVersion(-1); // newer
           return;
         }
         const el = e.target.closest("[data-img]");
