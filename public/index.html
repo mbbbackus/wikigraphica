@@ -32,8 +32,8 @@
         background: white;
       }
       .brand { font-weight: 600; font-size: 18px; letter-spacing: -0.01em; }
-      main { max-width: 1200px; margin: 0 auto; padding: 32px 24px 96px; }
-      .tagline { margin: 0 0 20px; color: var(--muted); }
+      .topbar .tagline { color: var(--muted); font-size: 14px; margin: 0; }
+      main { max-width: 1200px; margin: 0 auto; padding: 24px 24px 96px; }
       form.search { display: flex; gap: 8px; margin-bottom: 16px; }
       input[type="text"] {
         flex: 1;
@@ -62,31 +62,44 @@
       }
       button:disabled { opacity: 0.6; cursor: not-allowed; }
       .tabs {
-        display: flex;
-        gap: 4px;
-        border-bottom: 1px solid var(--border);
+        display: inline-flex;
+        gap: 2px;
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 3px;
         margin-bottom: 20px;
       }
       .tab {
         background: transparent;
         border: none;
         color: var(--muted);
-        padding: 10px 14px;
-        font-size: 14px;
+        padding: 7px 14px;
+        font-size: 13px;
         font-weight: 500;
         cursor: pointer;
-        border-bottom: 2px solid transparent;
-        margin-bottom: -1px;
+        border-radius: 7px;
+        font-family: inherit;
+        transition: background 0.12s ease, color 0.12s ease;
       }
-      .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+      .tab:hover { color: var(--fg); }
+      .tab.active {
+        color: white;
+        background: var(--accent);
+      }
+      .tab.active:hover { color: white; }
       .tab .badge {
-        background: var(--accent-soft);
-        color: var(--accent);
+        background: rgba(255, 255, 255, 0.25);
+        color: inherit;
         font-size: 11px;
         padding: 1px 6px;
         border-radius: 8px;
         margin-left: 6px;
         font-weight: 600;
+      }
+      .tab:not(.active) .badge {
+        background: var(--accent-soft);
+        color: var(--accent);
       }
       .status {
         font-size: 13px;
@@ -183,7 +196,14 @@
         align-items: center;
         justify-content: center;
       }
-      .card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      .card img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        transition: filter 0.15s ease;
+      }
+      .card:hover .img-wrap img { filter: brightness(0.55); }
       .card .meta { padding: 10px 12px 12px; }
       .card .title {
         font-size: 14px;
@@ -240,16 +260,32 @@
       }
       @keyframes spin { to { transform: rotate(360deg); } }
       .empty { color: var(--muted); font-size: 14px; padding: 24px 0; }
+      .lightbox {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.92);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 200;
+        cursor: zoom-out;
+        padding: 24px;
+      }
+      .lightbox img {
+        max-width: 100%;
+        max-height: 100%;
+        border-radius: 8px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      }
     </style>
   </head>
   <body>
     <div class="topbar">
       <div class="brand">Wikigraphica</div>
+      <p class="tagline">Paste a Wikipedia URL — get an infographic.</p>
     </div>
 
     <main>
-      <p class="tagline">Paste a Wikipedia URL — get an infographic.</p>
-
       <form class="search" id="form">
         <input
           id="q"
@@ -274,6 +310,10 @@
       <section id="tab-results" hidden><div id="results" class="grid"></div></section>
     </main>
 
+    <div id="lightbox" class="lightbox" hidden>
+      <img id="lightbox-img" alt="" />
+    </div>
+
     <script>
       const $ = (id) => document.getElementById(id);
       const form = $("form");
@@ -290,8 +330,25 @@
         queue: $("tab-queue"),
         results: $("tab-results"),
       };
+      const DEFAULT_PLACEHOLDER = "https://en.wikipedia.org/wiki/Octopus";
       let currentTab = "gallery";
+      let currentResultsUrl = null;
       let pollTimer = null;
+
+      const lightboxEl = $("lightbox");
+      const lightboxImg = $("lightbox-img");
+      function openLightbox(src) {
+        lightboxImg.src = src;
+        lightboxEl.hidden = false;
+      }
+      function closeLightbox() {
+        lightboxEl.hidden = true;
+        lightboxImg.src = "";
+      }
+      lightboxEl.addEventListener("click", closeLightbox);
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && !lightboxEl.hidden) closeLightbox();
+      });
 
       const MY_IDS_KEY = "wg.my_ids";
       function loadMyIds() {
@@ -324,8 +381,16 @@
         document.querySelectorAll(".tab").forEach((b) => {
           b.classList.toggle("active", b.dataset.tab === name);
         });
-        if (name === "gallery") loadGallery();
-        if (name === "queue") loadQueue();
+        if (name === "gallery") {
+          qInput.placeholder = DEFAULT_PLACEHOLDER;
+          currentResultsUrl = null;
+          loadGallery();
+        }
+        if (name === "queue") {
+          qInput.placeholder = DEFAULT_PLACEHOLDER;
+          currentResultsUrl = null;
+          loadQueue();
+        }
       }
       document.querySelectorAll(".tab").forEach((b) =>
         b.addEventListener("click", () => showTab(b.dataset.tab)),
@@ -341,8 +406,10 @@
           } else {
             resultsEl.innerHTML = d.results.map((row) => cardHtml(row)).join("");
           }
+          currentResultsUrl = wikiUrl;
+          qInput.placeholder = wikiUrl;
           showTab("results");
-          setStatus(`Showing ${d.results.length} generation${d.results.length === 1 ? "" : "s"} for this page.`);
+          setStatus("");
           if (d.results.some((r) => r.status === "pending")) managePolling(true);
         } catch (err) {
           setStatus("Error: " + err.message, true);
@@ -375,7 +442,7 @@
         return String(s).replace(/["\\]/g, "\\$&");
       }
 
-      function attachGridHandlers(containerEl) {
+      function attachGridHandlers(containerEl, opts = {}) {
         containerEl.addEventListener("click", (e) => {
           const regenItem = e.target.closest(".regen-item");
           if (regenItem) {
@@ -393,12 +460,19 @@
           if (e.target.closest("a.js-wiki-link")) return;
           const card = e.target.closest(".card");
           if (!card || !card.dataset.url) return;
+          if (opts.isResults && e.target.closest(".img-wrap")) {
+            const img = card.querySelector(".img-wrap img");
+            if (img && img.src) {
+              openLightbox(img.src);
+              return;
+            }
+          }
           viewByUrl(card.dataset.url);
         });
       }
       attachGridHandlers(galleryEl);
       attachGridHandlers(queueEl);
-      attachGridHandlers(resultsEl);
+      attachGridHandlers(resultsEl, { isResults: true });
 
       function isWikiUrl(s) {
         try {
