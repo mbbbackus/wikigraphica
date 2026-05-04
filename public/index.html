@@ -8,18 +8,25 @@
     <script src="https://d3js.org/d3.v7.min.js" defer></script>
     <style>
       :root {
-        --bg: #faf9f6;
+        --bg: #f3e6bd;
         --fg: #0a0a0a;
         --muted: #4a4a4a;
         --accent: #2b6cb0;
         --accent-soft: #ebf2fa;
         --border: #000;
-        --card: #ffffff;
+        --card: #fdfbf3;
         --error: #c53030;
         --bw: 4px;
         --shadow: 6px 6px 0 #000;
         --shadow-sm: 4px 4px 0 #000;
         --shadow-lg: 8px 8px 0 #000;
+      }
+      body {
+        background-color: var(--bg);
+        background-image:
+          linear-gradient(to right, rgba(70, 45, 0, 0.07) 1px, transparent 1px),
+          linear-gradient(to bottom, rgba(70, 45, 0, 0.07) 1px, transparent 1px);
+        background-size: 32px 32px, 32px 32px;
       }
       * { box-sizing: border-box; }
       body {
@@ -466,29 +473,50 @@
       .results-structured .infobox-side dt { font-weight: 600; color: var(--muted); }
       .results-structured .infobox-side dd { margin: 0; word-break: break-word; }
       .results-structured .infobox-empty { color: var(--muted); font-size: 12px; }
-      .results-structured .section {
-        margin-bottom: 32px;
-      }
-      .results-structured .section-header {
-        font-size: 22px;
-        font-weight: 700;
-        margin: 0 0 12px;
-        padding-bottom: 6px;
-        border-bottom: var(--bw) solid #000;
-      }
-      .results-structured .section-header.h3 { font-size: 17px; padding-left: 16px; }
-      .results-structured .section-image {
+      /* Each section is a single bordered card; the summary is the clickable header. */
+      .results-structured details.section {
         border: var(--bw) solid #000;
+        background: var(--card);
         box-shadow: var(--shadow);
         border-radius: 8px;
+        margin-bottom: 24px;
         overflow: hidden;
+      }
+      .results-structured details.section > summary {
+        list-style: none;
+        cursor: pointer;
+        padding: 14px 18px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 20px;
+        font-weight: 700;
+        gap: 12px;
+        user-select: none;
+      }
+      .results-structured details.section > summary::-webkit-details-marker { display: none; }
+      .results-structured details.section > summary h2 {
+        margin: 0;
+        font-size: inherit;
+        font-weight: inherit;
+      }
+      .results-structured details.section.h3 > summary { font-size: 16px; padding-left: 36px; }
+      .results-structured details.section[open] > summary {
+        border-bottom: var(--bw) solid #000;
+      }
+      .results-structured details.section .caret {
+        transition: transform 0.18s ease;
+        font-size: 18px;
+      }
+      .results-structured details.section[open] .caret { transform: rotate(180deg); }
+      .results-structured details.section .section-body { padding: 0; background: var(--card); }
+      .results-structured .section-image {
+        display: block;
         cursor: zoom-in;
         background: var(--card);
       }
       .results-structured .section-image img { width: 100%; display: block; }
       .results-structured .section-pending {
-        border: var(--bw) dashed #000;
-        border-radius: 8px;
         padding: 18px;
         background: var(--card);
         color: var(--muted);
@@ -507,8 +535,6 @@
         -webkit-box-orient: vertical;
       }
       .results-structured .section-error {
-        border: var(--bw) solid var(--error);
-        border-radius: 8px;
         padding: 14px;
         background: #fff5f5;
         color: var(--error);
@@ -869,10 +895,13 @@
               body = `<div class="section-pending">No infographic yet.</div>`;
             }
             return `
-              <div class="section">
-                <h2 class="section-header${headerCls}">${escape(s.title || "Section")}</h2>
-                ${body}
-              </div>
+              <details class="section${headerCls}" open>
+                <summary>
+                  <h2>${escape(s.title || "Section")}</h2>
+                  <i class="ph ph-caret-down caret"></i>
+                </summary>
+                <div class="section-body">${body}</div>
+              </details>
             `;
           })
           .join("");
