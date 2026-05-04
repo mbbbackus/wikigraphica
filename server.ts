@@ -227,6 +227,28 @@ async function fanOutSectionsAndInfobox(args: {
       extract: sec.text,
       categoryKey,
     }).catch((e) => console.warn("section gen failed", e));
+
+    // Tiny black-on-white pictogram for the section header.
+    if (process.env.GENERATE_SECTION_ICONS !== "false") {
+      const iconId = crypto.randomUUID();
+      queries.insertInfographicForSection.run(
+        iconId,
+        wikiUrl,
+        pageId,
+        sectionId,
+        "section_icon",
+        Date.now(),
+      );
+      const iconPrompt = `A single minimal pictogram representing the concept of "${sec.title}". Solid black silhouette or symbol centered on a pure white background. Public-signage glyph clarity, like an Olympic pictogram or museum wayfinding icon. No text, no labels, no border, no decorative elements. Strong negative space and generous white margins. Single shape only.`;
+      generateOne(iconId, iconPrompt, {
+        lang,
+        title: `${summary.title} — ${sec.title} icon`,
+        description: "",
+        extract: sec.title,
+        categoryKey: null,
+        size: "1024x1024",
+      }).catch((e) => console.warn("section icon gen failed", e));
+    }
   }
 }
 

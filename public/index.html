@@ -524,6 +524,14 @@
         line-height: 1;
         color: #000;
       }
+      .results-structured details.section > summary .summary-img-icon {
+        flex: 0 0 auto;
+        width: 28px;
+        height: 28px;
+        object-fit: contain;
+        border-radius: 4px;
+        background: #fff;
+      }
       .results-structured details.section > summary h2 {
         margin: 0;
         font-size: inherit;
@@ -939,9 +947,15 @@
         const sectionHtml = sections
           .filter((s) => s.kind !== "infobox")
           .map((s) => {
-            const done = s.infographics.find((i) => i.status === "done");
-            const pending = s.infographics.find((i) => i.status === "pending");
-            const errored = s.infographics.find((i) => i.status === "error");
+            const sectionInfos = (s.infographics || []).filter(
+              (i) => i.kind !== "section_icon",
+            );
+            const sectionIcon = (s.infographics || []).find(
+              (i) => i.kind === "section_icon" && i.status === "done",
+            );
+            const done = sectionInfos.find((i) => i.status === "done");
+            const pending = sectionInfos.find((i) => i.status === "pending");
+            const errored = sectionInfos.find((i) => i.status === "error");
             const headerCls = s.level >= 3 ? " h3" : "";
             let body = "";
             if (done && done.image_url) {
@@ -958,11 +972,14 @@
             } else {
               body = `<div class="section-pending">No infographic yet.</div>`;
             }
+            const iconHtml = sectionIcon && sectionIcon.image_url
+              ? `<img class="summary-img-icon" src="${escape(sectionIcon.image_url)}" alt="" />`
+              : `<i class="ph ph-${pageIcon} summary-icon"></i>`;
             const isOpen = openSections.has(s.id) ? " open" : "";
             return `
               <details class="section${headerCls}"${isOpen} data-section-id="${escape(s.id)}">
                 <summary>
-                  <i class="ph ph-${pageIcon} summary-icon"></i>
+                  ${iconHtml}
                   <h2>${escape(s.title || "Section")}</h2>
                   <i class="ph ph-caret-down caret"></i>
                 </summary>

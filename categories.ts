@@ -18,7 +18,7 @@ const PARENTS: Category[] = [
     label: "Person",
     hint: "A biography of a real or fictional individual not covered by a more specific person sub-type.",
     style:
-      "Portrait-led layout: central illustrated portrait with side panel of dates and accomplishments; era-appropriate palette.",
+      "Editorial portrait spread, New Yorker meets Time. A single hand-painted portrait of the subject occupies roughly 60% of the frame on the left, set against a subtly textured cream background. To the right: a vertical stack of 3-4 dated milestones in tight modern sans-serif numerals. Above the portrait an elegant didone serif headline. Hand-drawn marginal arrows and asterisk-style marginalia in pencil. Palette: warm cream paper #F4ECD8, deep indigo #1E3A8A ink, vermillion accent #B8503C. Light pencil-grain overlay.",
     icon: "user-circle",
     color: "#4f46e5",
   },
@@ -27,7 +27,7 @@ const PARENTS: Category[] = [
     label: "Place",
     hint: "A geographic location not covered by a more specific place sub-type.",
     style:
-      "Map-led layout: stylized map or aerial view as anchor with location pins and demographic stats.",
+      "Cartographer's plate, like a 1920s travel magazine spread. A stylized topographic or aerial map fills the upper two-thirds of the frame, framed by a thin double rule. A horizontal strip of place statistics in a single row of small uppercase sans numerals runs across the bottom. A vintage compass rose and tiny etched landmark glyphs sit in the margins. Palette: aged ivory #F6EFD6, terracotta #B85F3B, ink-blue #283B59, single olive accent #5B6E3E. Subtle paper grain.",
     icon: "map-pin",
     color: "#d97706",
   },
@@ -36,7 +36,7 @@ const PARENTS: Category[] = [
     label: "Event",
     hint: "A historical event, era, movement, or one-time happening not covered by a more specific event sub-type.",
     style:
-      "Timeline-led layout: horizontal timeline backbone with event nodes; period-evocative muted palette.",
+      "Documentary timeline broadside, like a museum wall plaque. A single horizontal central rule bisects the frame; major dated nodes branch above and below the rule with small captioned vignettes rendered in period engraving line work. Period-appropriate slab serif for dates, condensed sans for captions. Palette: bone #ECE6D5, oxblood #6E1F1F, mustard #C8941E accent. Restrained ornament.",
     icon: "clock-clockwise",
     color: "#e11d48",
   },
@@ -45,7 +45,7 @@ const PARENTS: Category[] = [
     label: "Science",
     hint: "A scientific concept, principle, law, or theory not covered by a more specific science sub-type.",
     style:
-      "Diagram-led: schematic illustration with labeled parts and clean technical educational palette.",
+      "Editorial science page, asymmetric. A large schematic illustration on the left of the frame, the key formula in centered serif italic between, and 2-3 stacked callout panels with short explanations on the right. Hand-drawn arrows link parts of the schematic to callouts, like textbook annotations. Palette: chalkboard ink-blue #1E3A59, lab-cream #F0E8D4, single warm accent of cadmium red #C2452F.",
     icon: "flask",
     color: "#0284c7",
   },
@@ -54,7 +54,7 @@ const PARENTS: Category[] = [
     label: "Technology",
     hint: "A technology, machine, software, or engineered system not covered by a more specific technology sub-type.",
     style:
-      "Schematic-led: exploded or layered diagram with technical labels; modern industrial palette.",
+      "Tech-magazine spread (Wired meets IEEE Spectrum). A large exploded-view of the subject in clean technical line work occupies the center, with thin leader lines tagging components. A small data table of specs in monospaced numerals sits at the bottom. Palette: graphite #2D2D2D, soft ivory #F4F0E6, electric coral accent #FF6B4A. Crisp minimal type.",
     icon: "cpu",
     color: "#475569",
   },
@@ -63,7 +63,7 @@ const PARENTS: Category[] = [
     label: "Nature",
     hint: "An animal, plant, fungus, or other biological taxon not covered by a more specific nature sub-type.",
     style:
-      "Naturalist illustration of the species with anatomical labels and a small range map; watercolor palette.",
+      "Natural-history plate (19th-century field-guide). The specimen rendered in detailed watercolor centered on parchment, with delicate label arrows pointing to anatomical parts in italic copperplate hand. Marginalia: a tiny tiled habitat sketch in a lower corner; specimen number etched in the upper margin. Palette: parchment #F4ECD6, sepia ink #614327, moss green #5B6E3E, single crimson accent #A92A2A.",
     icon: "leaf",
     color: "#059669",
   },
@@ -72,7 +72,7 @@ const PARENTS: Category[] = [
     label: "Arts & culture",
     hint: "A cultural work or movement (art, literature, theatre, language, internet phenomenon) not covered by a more specific sub-type.",
     style:
-      "Editorial layout: bold reference imagery with grid of key works; expressive, era-tuned palette.",
+      "Editorial culture-page, magazine feature opener. The hero artwork or representative imagery anchors the centre at full bleed; a stack of titled callout panels (key works, themes, era) flanks one margin. Editorial display serif (New Yorker masthead style) for the title, tight news sans for captions. Palette: warm bone #F3EDDF, indigo #1C2545 ink, plus a single saturated spot color tuned to the work's medium and era.",
     icon: "palette",
     color: "#c026d3",
   },
@@ -81,7 +81,7 @@ const PARENTS: Category[] = [
     label: "Sports",
     hint: "A sport, team, athlete, tournament, or sporting event not covered by a more specific sub-type.",
     style:
-      "Pitch-led layout: court or field diagram with action pose and large stat numerals; team-colored accents.",
+      "Sports magazine cover composition. A dynamic action figure or play moment cropped at an angle, with a single bold sans-serif numeral (the headline stat) overlaid in spot color. A small pitch/court diagram inset in a corner. Palette: chalk-white #F5F0E8, jet black #0F0F0F, plus one team-style spot color. Energetic but legible.",
     icon: "soccer-ball",
     color: "#ea580c",
   },
@@ -90,7 +90,7 @@ const PARENTS: Category[] = [
     label: "Food",
     hint: "A dish, ingredient, beverage, or cuisine not covered by a more specific food sub-type.",
     style:
-      "Recipe-card aesthetic: top-down hero of the dish with ingredient circles; warm palette.",
+      "Recipe-card spread (Bon Appétit / Kinfolk). A top-down hero of the dish in rich painterly watercolor anchors the upper half. Below: ingredient circles in a tidy row with hand-lettered labels in italic. Palette: ivory paper #F5EDD8, terracotta #B85F3B, herb green #5B6E3E, bright accent of saffron yellow #D4A72C.",
     icon: "fork-knife",
     color: "#dc2626",
   },
@@ -99,7 +99,7 @@ const PARENTS: Category[] = [
     label: "Math",
     hint: "A mathematical concept, theorem, equation, or branch of math not covered by a more specific sub-type.",
     style:
-      "Formula-led: equation typography centerpiece with geometric rhythm; minimalist monochrome plus one accent.",
+      "Mathematical journal page. The central equation rendered large in italic Computer Modern, surrounded by airy white space with light geometric figures in the margins. Tight serif body type for explanatory captions. Palette: ink black on cream #F0EAD2 paper, single accent of muted ultramarine #2C3E7C.",
     icon: "function",
     color: "#0891b2",
   },
@@ -108,7 +108,7 @@ const PARENTS: Category[] = [
     label: "Religion",
     hint: "A religion, belief system, religious figure, scripture, ritual, mythology, or sacred concept not covered by a more specific sub-type.",
     style:
-      "Sacred-art treatment: emblematic symbol with illuminated-manuscript ornamentation and jewel-tone accents.",
+      "Illuminated manuscript page. The central iconographic figure or symbol sits inside a hand-painted golden roundel, surrounded by ornate marginalia (vines, geometric knots, tiny figures). A drop cap for the title in ornate gothic. Palette: vellum #F4E7C8, lapis lazuli #1F3A8A, deep red #8B2222, gold leaf #C8A14A.",
     icon: "cross",
     color: "#ca8a04",
   },
@@ -117,7 +117,7 @@ const PARENTS: Category[] = [
     label: "Medicine",
     hint: "A disease, body part, treatment, drug, procedure, or medical concept not covered by a more specific sub-type.",
     style:
-      "Anatomical illustration: cross-section with technical leader-line labels; clinical white-and-red palette.",
+      "Anatomical-atlas plate (Gray's Anatomy meets Vesalius). A hand-drawn cross-section anatomy fills the center, with thin guide lines pointing to organs labeled in elegant italic. A thin double rule frames the page. Plate number in serif at the corner. Palette: aged cream #F0E8D4, anatomy red #B8503C, ink blue #1F2F4D.",
     icon: "stethoscope",
     color: "#db2777",
   },
@@ -126,7 +126,7 @@ const PARENTS: Category[] = [
     label: "Transport",
     hint: "A vehicle (car, plane, ship, train, spacecraft) or transportation system not covered by a more specific sub-type.",
     style:
-      "Cutaway/side-elevation diagram with dimension callouts; light blueprint-grid background.",
+      "Engineering-magazine spread. A side-elevation cutaway diagram in detailed line work occupies the full width. Tiny thumbnails of variants beneath. A horizontal data strip with specs in monospaced numerals at the foot. Palette: blueprint #14395C paper, white-ink lines, single accent of brass #B8954A.",
     icon: "car",
     color: "#0d9488",
   },
@@ -135,7 +135,7 @@ const PARENTS: Category[] = [
     label: "Astronomy",
     hint: "A celestial object, astronomical phenomenon, or space mission not covered by a more specific sub-type.",
     style:
-      "Starfield-led: dark cosmic background with luminous focal subject and scale-comparison overlay.",
+      "Astronomical atlas plate (1880s-style). A deep navy near-black field with star-stippling. The subject rendered in finely cross-hatched engraving style centered, with thin radial annotations to nearby reference points and a plate number in serif at the corner. Palette: midnight #0A1428, parchment-cream subject #F4ECD8, single accent of warm gold #C8A14A.",
     icon: "planet",
     color: "#7c3aed",
   },
@@ -144,7 +144,7 @@ const PARENTS: Category[] = [
     label: "Architecture",
     hint: "A notable building, monument, bridge, or architectural style not covered by a more specific sub-type.",
     style:
-      "Architectural elevation: rendered front or three-quarter view with blueprint-style technical lines and dimensions.",
+      "Architectural drafting plate. Front elevation rendered in exact black line work with dimension lines and notation, a small floor-plan inset bottom-left, light graphite-grey shading. Title in modernist sans-serif at the top. Palette: chalkboard cream #F0E8D4, graphite #2D2D2D, single accent of construction yellow #D4A72C.",
     icon: "buildings",
     color: "#57534e",
   },
@@ -153,7 +153,7 @@ const PARENTS: Category[] = [
     label: "Company",
     hint: "A company, corporation, brand, or institution.",
     style:
-      "Corporate report aesthetic: bold founding-date numeral and milestone strip; neutral grayscale plus brand accent.",
+      "Annual-report front page. A bold founding-year numeral in thick slab serif anchors the page; a horizontal milestone timeline strip runs across the middle; small data callouts (employees, revenue, founders) stacked below. Editorial sans for body. Palette: corporate cream #F3EDDF, deep navy #1F2F4D, single brand-spot color tuned to the company's actual brand.",
     icon: "briefcase",
     color: "#65a30d",
   },
