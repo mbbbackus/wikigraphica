@@ -400,7 +400,126 @@
         color: var(--c, var(--muted));
       }
 
-      /* Results page: single full-width column, no metadata, big images */
+      /* Results page: structured (page-skeleton) layout */
+      .results-structured { display: block; }
+      .results-structured .page-header {
+        margin-bottom: 24px;
+        padding-bottom: 16px;
+        border-bottom: 3px solid #000;
+      }
+      .results-structured .page-title {
+        font-size: 32px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        margin: 0 0 4px;
+      }
+      .results-structured .page-desc { font-size: 14px; color: var(--muted); margin: 0; }
+      .results-structured .lead {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 320px;
+        gap: 24px;
+        margin-bottom: 32px;
+      }
+      .results-structured .lead-overview {
+        border: 3px solid #000;
+        box-shadow: var(--shadow-lg);
+        border-radius: 8px;
+        background: var(--card);
+        overflow: hidden;
+        cursor: zoom-in;
+      }
+      .results-structured .lead-overview img { width: 100%; display: block; }
+      .results-structured .lead-overview .placeholder {
+        aspect-ratio: 1 / 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f0eee9;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .results-structured .infobox-side {
+        border: var(--bw) solid #000;
+        box-shadow: var(--shadow);
+        border-radius: 8px;
+        background: var(--card);
+        padding: 16px;
+        align-self: start;
+        position: sticky;
+        top: 16px;
+      }
+      .results-structured .infobox-side h3 {
+        margin: 0 0 12px;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        border-bottom: 2px solid #000;
+        padding-bottom: 6px;
+      }
+      .results-structured .infobox-side dl {
+        margin: 0;
+        display: grid;
+        grid-template-columns: minmax(60px, 32%) 1fr;
+        gap: 6px 10px;
+        font-size: 12px;
+      }
+      .results-structured .infobox-side dt { font-weight: 600; color: var(--muted); }
+      .results-structured .infobox-side dd { margin: 0; word-break: break-word; }
+      .results-structured .infobox-empty { color: var(--muted); font-size: 12px; }
+      .results-structured .section {
+        margin-bottom: 32px;
+      }
+      .results-structured .section-header {
+        font-size: 22px;
+        font-weight: 700;
+        margin: 0 0 12px;
+        padding-bottom: 6px;
+        border-bottom: 2.5px solid #000;
+      }
+      .results-structured .section-header.h3 { font-size: 17px; padding-left: 16px; }
+      .results-structured .section-image {
+        border: var(--bw) solid #000;
+        box-shadow: var(--shadow);
+        border-radius: 8px;
+        overflow: hidden;
+        cursor: zoom-in;
+        background: var(--card);
+      }
+      .results-structured .section-image img { width: 100%; display: block; }
+      .results-structured .section-pending {
+        border: 2.5px dashed #000;
+        border-radius: 8px;
+        padding: 18px;
+        background: var(--card);
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .results-structured .section-pending .preview {
+        font-size: 12px;
+        color: #444;
+        margin-top: 10px;
+        line-height: 1.5;
+        max-height: 4.5em;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+      }
+      .results-structured .section-error {
+        border: 2.5px solid var(--error);
+        border-radius: 8px;
+        padding: 14px;
+        background: #fff5f5;
+        color: var(--error);
+        font-size: 13px;
+      }
+      @media (max-width: 800px) {
+        .results-structured .lead { grid-template-columns: 1fr; }
+        .results-structured .infobox-side { position: static; }
+      }
+
+      /* Results page: legacy flat list (used when no wiki_pages row) */
       #tab-results .grid {
         grid-template-columns: 1fr;
         gap: 24px;
@@ -545,7 +664,10 @@
       </section>
       <section id="tab-gallery" hidden><div id="gallery" class="grid"></div></section>
       <section id="tab-queue" hidden><div id="queue" class="grid"></div></section>
-      <section id="tab-results" hidden><div id="results" class="grid"></div></section>
+      <section id="tab-results" hidden>
+        <div id="results-structured" class="results-structured" hidden></div>
+        <div id="results" class="grid"></div>
+      </section>
     </main>
 
     <div id="lightbox" class="lightbox" hidden>
@@ -685,26 +807,131 @@
         b.addEventListener("click", () => showTab(b.dataset.tab)),
       );
 
+      const resultsStructuredEl = $("results-structured");
+
+      function renderStructuredResults(data) {
+        const page = data.page;
+        const overviews = data.overview_infographics || [];
+        const sections = data.sections || [];
+        const lead = overviews.find((i) => i.status === "done") || overviews[0];
+
+        const leadHtml = lead && lead.image_url
+          ? `<a class="lead-overview" data-img="${escape(lead.image_url)}">
+               <img src="${escape(lead.image_url)}" alt="${escape(page?.wiki_title || "")}" />
+             </a>`
+          : `<div class="lead-overview"><div class="placeholder">${
+              lead && lead.status === "pending"
+                ? "Generating overview…"
+                : lead && lead.status === "error"
+                ? "Overview failed"
+                : "No overview yet"
+            }</div></div>`;
+
+        const infobox = page?.infobox;
+        const infoboxHtml = infobox && infobox.length
+          ? `<div class="infobox-side">
+               <h3>${escape(page.wiki_title)}</h3>
+               <dl>${infobox
+                 .slice(0, 20)
+                 .map(
+                   (p) =>
+                     `<dt>${escape(p.key)}</dt><dd>${escape(p.value)}</dd>`,
+                 )
+                 .join("")}</dl>
+             </div>`
+          : `<div class="infobox-side"><h3>Key facts</h3><div class="infobox-empty">No infobox extracted for this page.</div></div>`;
+
+        const sectionHtml = sections
+          .filter((s) => s.kind !== "infobox")
+          .map((s) => {
+            const done = s.infographics.find((i) => i.status === "done");
+            const pending = s.infographics.find((i) => i.status === "pending");
+            const errored = s.infographics.find((i) => i.status === "error");
+            const headerCls = s.level >= 3 ? " h3" : "";
+            let body = "";
+            if (done && done.image_url) {
+              body = `<a class="section-image" data-img="${escape(done.image_url)}">
+                        <img src="${escape(done.image_url)}" alt="${escape(s.title || "")}" loading="lazy" />
+                      </a>`;
+            } else if (pending) {
+              const preview = s.text_body
+                ? `<div class="preview">${escape(s.text_body.slice(0, 280))}…</div>`
+                : "";
+              body = `<div class="section-pending"><span class="spinner"></span>Generating section infographic…${preview}</div>`;
+            } else if (errored) {
+              body = `<div class="section-error">Generation failed: ${escape(errored.error || "unknown")}</div>`;
+            } else {
+              body = `<div class="section-pending">No infographic yet.</div>`;
+            }
+            return `
+              <div class="section">
+                <h2 class="section-header${headerCls}">${escape(s.title || "Section")}</h2>
+                ${body}
+              </div>
+            `;
+          })
+          .join("");
+
+        resultsStructuredEl.innerHTML = `
+          <div class="page-header">
+            <h1 class="page-title">${escape(page?.wiki_title || "")}</h1>
+            ${page?.wiki_description ? `<p class="page-desc">${escape(page.wiki_description)}</p>` : ""}
+          </div>
+          <div class="lead">
+            ${leadHtml}
+            ${infoboxHtml}
+          </div>
+          ${sectionHtml}
+        `;
+      }
+
       async function viewByUrl(wikiUrl) {
         try {
-          const r = await fetch("/by-url?url=" + encodeURIComponent(wikiUrl));
+          const r = await fetch(
+            "/page-structure?url=" + encodeURIComponent(wikiUrl),
+          );
           const d = await r.json();
           if (!r.ok) throw new Error(d.error || "failed");
-          if (!d.results.length) {
-            resultsEl.innerHTML = '<div class="empty">No generations for this page yet.</div>';
+
+          const hasStructured = !!d.page;
+          if (hasStructured) {
+            renderStructuredResults(d);
+            resultsStructuredEl.hidden = false;
+            resultsEl.hidden = true;
           } else {
-            resultsEl.innerHTML = d.results.map((row) => cardHtml(row)).join("");
+            // Fallback for legacy gens with no wiki_pages row
+            const flat = await fetch(
+              "/by-url?url=" + encodeURIComponent(wikiUrl),
+            ).then((x) => x.json());
+            resultsEl.innerHTML = (flat.results || []).length
+              ? flat.results.map((row) => cardHtml(row)).join("")
+              : '<div class="empty">No generations for this page yet.</div>';
+            resultsStructuredEl.hidden = true;
+            resultsEl.hidden = false;
           }
+
           currentResultsUrl = wikiUrl;
           qInput.placeholder = wikiUrl;
           setResultsTabUsed(true);
           showTab("results");
           setStatus("");
-          if (d.results.some((r) => r.status === "pending")) managePolling(true);
+
+          const allInfos = [
+            ...(d.overview_infographics || []),
+            ...(d.sections || []).flatMap((s) => s.infographics || []),
+          ];
+          if (allInfos.some((i) => i.status === "pending")) managePolling(true);
         } catch (err) {
           setStatus("Error: " + err.message, true);
         }
       }
+
+      resultsStructuredEl.addEventListener("click", (e) => {
+        const el = e.target.closest("[data-img]");
+        if (!el) return;
+        e.preventDefault();
+        openLightbox(el.dataset.img);
+      });
 
       async function regenerate(wikiUrl, category) {
         try {
@@ -940,7 +1167,10 @@
           pollTimer = setInterval(() => {
             loadQueue();
             if (currentTab === "gallery") loadGallery();
-            if (currentTab === "results") refreshResults();
+            if (currentTab === "results") {
+              if (currentResultsUrl) viewByUrl(currentResultsUrl);
+              else refreshResults();
+            }
           }, 3000);
         } else if (!hasPending && pollTimer) {
           clearInterval(pollTimer);

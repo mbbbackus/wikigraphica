@@ -154,6 +154,12 @@ export const queries = {
   getWikiPageByUrl: db.prepare<WikiPage, [string]>(
     "select * from wiki_pages where wiki_url = ?",
   ),
+  getSectionsByPage: db.prepare<WikiSection, [string]>(
+    "select * from wiki_sections where page_id = ? order by section_index asc",
+  ),
+  getInfographicsByUrl: db.prepare<Infographic, [string]>(
+    "select * from infographics where wiki_url = ? order by created_at desc",
+  ),
   markDone: db.prepare<
     unknown,
     [string, string, string, string, string, string, string, string, string, string | null, number, string]

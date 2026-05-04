@@ -261,6 +261,55 @@ const server = Bun.serve({
       }
     }
 
+    if (req.method === "GET" && path === "/page-structure") {
+      try {
+        const wikiUrl = url.searchParams.get("url");
+        if (!wikiUrl) return jsonError(new Error("missing url"));
+        const { canonical } = parseWikipediaUrl(wikiUrl);
+        const page = queries.getWikiPageByUrl.get(canonical);
+        const allInfo = queries.getInfographicsByUrl.all(canonical);
+        const bySection = new Map<string | null, InfographicView[]>();
+        bySection.set(null, []);
+        for (const i of allInfo) {
+          const sid = i.section_id ?? null;
+          if (!bySection.has(sid)) bySection.set(sid, []);
+          bySection.get(sid)!.push(viewInfographic(i));
+        }
+        let sections: Array<any> = [];
+        if (page) {
+          const secs = queries.getSectionsByPage.all(page.id);
+          sections = secs.map((s) => ({
+            id: s.id,
+            kind: s.kind,
+            title: s.title,
+            level: s.level,
+            section_index: s.section_index,
+            text_body: s.text_body,
+            infographics: bySection.get(s.id) ?? [],
+          }));
+        }
+        return Response.json({
+          page: page
+            ? {
+                id: page.id,
+                wiki_url: page.wiki_url,
+                wiki_title: page.wiki_title,
+                wiki_lang: page.wiki_lang,
+                wiki_description: page.wiki_description,
+                wiki_extract: page.wiki_extract,
+                infobox: page.infobox_json
+                  ? (JSON.parse(page.infobox_json) as Array<{ key: string; value: string }>)
+                  : null,
+              }
+            : null,
+          overview_infographics: bySection.get(null) ?? [],
+          sections,
+        });
+      } catch (err) {
+        return jsonError(err);
+      }
+    }
+
     if (req.method === "GET" && path === "/by-url") {
       try {
         const wikiUrl = url.searchParams.get("url");
