@@ -142,6 +142,41 @@ const server = Bun.serve({
       }
     }
 
+    if (req.method === "GET" && path === "/graph") {
+      try {
+        const rows = queries.galleryDone.all(2000);
+        const nodes = rows.map(viewInfographic);
+        const idByUrl = new Map<string, string>();
+        const urlByTitle = new Map<string, string>();
+        for (const r of rows) {
+          idByUrl.set(r.wiki_url, r.id);
+          if (r.wiki_title) urlByTitle.set(r.wiki_title, r.wiki_url);
+        }
+        let links: Array<{ source: string; target: string }> = [];
+        if (existsSync("data/edges.json")) {
+          const raw = (await Bun.file("data/edges.json").json()) as Array<{
+            source: string;
+            target: string;
+          }>;
+          const seen = new Set<string>();
+          for (const e of raw) {
+            const su = urlByTitle.get(e.source);
+            const tu = urlByTitle.get(e.target);
+            if (!su || !tu || su === tu) continue;
+            const sid = idByUrl.get(su)!;
+            const tid = idByUrl.get(tu)!;
+            const key = sid < tid ? `${sid}|${tid}` : `${tid}|${sid}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            links.push({ source: sid, target: tid });
+          }
+        }
+        return Response.json({ nodes, links });
+      } catch (err) {
+        return jsonError(err);
+      }
+    }
+
     if (req.method === "GET" && path === "/gallery") {
       try {
         const rows = queries.galleryDone.all(120);

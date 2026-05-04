@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "bun run --hot server.ts",
     "build-queue": "bun run scripts/build-queue.ts",
-    "worker": "bun run scripts/worker.ts"
+    "worker": "bun run scripts/worker.ts",
+    "build-edges": "bun run scripts/build-edges.ts"
   },
   "type": "module"
 }
