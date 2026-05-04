@@ -106,7 +106,7 @@ const server = Bun.serve({
         const wikiUrl = url.searchParams.get("url");
         if (!wikiUrl) return jsonError(new Error("missing url"));
         const { canonical } = parseWikipediaUrl(wikiUrl);
-        const rows = queries.byUrlDone.all(canonical, 50);
+        const rows = queries.byUrl.all(canonical, 100);
         const results: InfographicView[] = rows.map(viewInfographic);
         return Response.json({ results });
       } catch (err) {

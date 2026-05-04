@@ -108,8 +108,33 @@
         display: flex;
         flex-direction: column;
         position: relative;
+        cursor: pointer;
+        transition: transform 0.1s ease, box-shadow 0.1s ease;
       }
+      .card:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
       .card.fresh { box-shadow: 0 0 0 2px var(--accent); }
+      .card-actions {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        display: flex;
+        gap: 6px;
+        opacity: 0;
+        transition: opacity 0.15s ease;
+        z-index: 2;
+      }
+      .card:hover .card-actions { opacity: 1; }
+      .card-actions button {
+        font-size: 12px;
+        padding: 5px 10px;
+        background: rgba(20, 20, 20, 0.78);
+        color: white;
+        backdrop-filter: blur(6px);
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
+      }
+      .card-actions button:disabled { opacity: 0.6; cursor: progress; }
       .card.error { border-color: var(--error); }
       .card .img-wrap {
         aspect-ratio: 1 / 1;
@@ -266,6 +291,79 @@
         b.addEventListener("click", () => showTab(b.dataset.tab)),
       );
 
+      async function viewByUrl(wikiUrl) {
+        try {
+          const r = await fetch("/by-url?url=" + encodeURIComponent(wikiUrl));
+          const d = await r.json();
+          if (!r.ok) throw new Error(d.error || "failed");
+          if (!d.results.length) {
+            resultsEl.innerHTML = '<div class="empty">No generations for this page yet.</div>';
+          } else {
+            resultsEl.innerHTML = d.results.map((row) => cardHtml(row)).join("");
+          }
+          showTab("results");
+          setStatus(`Showing ${d.results.length} generation${d.results.length === 1 ? "" : "s"} for this page.`);
+          if (d.results.some((r) => r.status === "pending")) managePolling(true);
+        } catch (err) {
+          setStatus("Error: " + err.message, true);
+        }
+      }
+
+      async function regenerate(wikiUrl, btn) {
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = "↻ Queuing…";
+        }
+        try {
+          const r = await fetch("/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: wikiUrl }),
+          });
+          const d = await r.json();
+          if (!r.ok) throw new Error(d.error || "failed");
+          if (d.infographic?.id) addMyId(d.infographic.id);
+          setStatus(`Regenerating ${escape(wikiUrl)}…`);
+          managePolling(true);
+          if (currentTab === "queue") loadQueue();
+          if (currentTab === "results") {
+            const card = document.querySelector(`.card[data-url="${cssEscape(wikiUrl)}"]`);
+            if (card) viewByUrl(wikiUrl);
+          }
+        } catch (err) {
+          setStatus("Error: " + err.message, true);
+        } finally {
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = "↻ Regenerate";
+          }
+        }
+      }
+
+      function cssEscape(s) {
+        return String(s).replace(/["\\]/g, "\\$&");
+      }
+
+      function attachGridHandlers(containerEl) {
+        containerEl.addEventListener("click", (e) => {
+          const regenBtn = e.target.closest(".js-regenerate");
+          if (regenBtn) {
+            e.stopPropagation();
+            const card = regenBtn.closest(".card");
+            if (!card) return;
+            regenerate(card.dataset.url, regenBtn);
+            return;
+          }
+          if (e.target.closest("a.js-wiki-link")) return; // let wiki link navigate
+          const card = e.target.closest(".card");
+          if (!card || !card.dataset.url) return;
+          viewByUrl(card.dataset.url);
+        });
+      }
+      attachGridHandlers(galleryEl);
+      attachGridHandlers(queueEl);
+      attachGridHandlers(resultsEl);
+
       function isWikiUrl(s) {
         try {
           const u = new URL(s);
@@ -296,18 +394,24 @@
         } else if (row.status === "error") {
           imgArea = `<div class="img-wrap"><div class="error-overlay">Failed: ${escape(row.error || "unknown")}</div></div>`;
         } else if (row.image_url) {
-          imgArea = `<a class="img-wrap" href="${escape(row.image_url)}" target="_blank" rel="noopener"><img src="${escape(row.image_url)}" alt="${titleText}" loading="lazy" /></a>`;
+          imgArea = `<div class="img-wrap"><img src="${escape(row.image_url)}" alt="${titleText}" loading="lazy" /></div>`;
         } else {
           imgArea = `<div class="img-wrap"></div>`;
         }
 
         const catBadge = row.category ? `<div class="cat">${escape(row.category)}</div>` : "";
+        const actions = `
+          <div class="card-actions">
+            <button type="button" class="js-regenerate" title="Regenerate">↻ Regenerate</button>
+          </div>
+        `;
         return `
-          <div class="card${fresh}${err}" data-id="${escape(row.id)}">
+          <div class="card${fresh}${err}" data-id="${escape(row.id)}" data-url="${wikiHref}">
+            ${actions}
             ${imgArea}
             <div class="meta">
               ${catBadge}
-              <div class="title"><a href="${wikiHref}" target="_blank" rel="noopener">${titleText}</a></div>
+              <div class="title"><a href="${wikiHref}" target="_blank" rel="noopener" class="js-wiki-link">${titleText}</a></div>
               <div class="sub">${date}</div>
             </div>
           </div>

@@ -97,8 +97,8 @@ export const queries = {
   galleryDone: db.prepare<Infographic, [number]>(
     "select * from infographics where status = 'done' order by created_at desc limit ?",
   ),
-  byUrlDone: db.prepare<Infographic, [string, number]>(
-    "select * from infographics where wiki_url = ? and status = 'done' order by created_at desc limit ?",
+  byUrl: db.prepare<Infographic, [string, number]>(
+    "select * from infographics where wiki_url = ? order by created_at desc limit ?",
   ),
 };
 
