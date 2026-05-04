@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Wikigraphica</title>
     <script src="https://unpkg.com/@phosphor-icons/web@2.1.1" defer></script>
+    <script src="https://d3js.org/d3.v7.min.js" defer></script>
     <style>
       :root {
         --bg: #faf9f6;
@@ -230,6 +231,7 @@
         text-overflow: ellipsis;
       }
       .card .cat {
+        --c: var(--accent);
         display: inline-flex;
         align-items: center;
         gap: 4px;
@@ -237,8 +239,8 @@
         text-transform: uppercase;
         letter-spacing: 0.06em;
         font-weight: 600;
-        color: var(--accent);
-        background: var(--accent-soft);
+        color: var(--c);
+        background: color-mix(in srgb, var(--c) 14%, white);
         padding: 2px 7px 2px 6px;
         border-radius: 4px;
         margin-bottom: 4px;
@@ -272,6 +274,70 @@
       }
       @keyframes spin { to { transform: rotate(360deg); } }
       .empty { color: var(--muted); font-size: 14px; padding: 24px 0; }
+
+      /* Graph tab */
+      #tab-graph .graph-frame {
+        position: relative;
+        width: 100%;
+        height: 70vh;
+        min-height: 480px;
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      #tab-graph svg { width: 100%; height: 100%; display: block; }
+      #tab-graph .graph-tooltip {
+        position: absolute;
+        pointer-events: none;
+        background: rgba(20, 20, 20, 0.92);
+        color: white;
+        padding: 6px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        max-width: 260px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        opacity: 0;
+        transition: opacity 0.12s ease;
+        z-index: 5;
+      }
+      #tab-graph .graph-tooltip.show { opacity: 1; }
+      #tab-graph .graph-tooltip .gt-cat {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        opacity: 0.7;
+        margin-right: 6px;
+      }
+      #tab-graph .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      #tab-graph .legend .item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        color: var(--muted);
+        padding: 3px 8px;
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+      }
+      #tab-graph .legend .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+      }
+      #tab-graph .graph-stats {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 4px;
+      }
 
       /* Results page: single full-width column, no metadata, big images */
       #tab-results .grid {
@@ -380,6 +446,7 @@
       </form>
       <div class="toolbar">
         <div class="tabs">
+          <button class="tab" data-tab="graph">Graph</button>
           <button class="tab" data-tab="gallery">Gallery</button>
           <button class="tab" data-tab="queue">My stuff <span class="badge" id="queue-badge" hidden>0</span></button>
           <button class="tab" data-tab="results">Results</button>
@@ -406,7 +473,15 @@
       </div>
       <div id="status" class="status"></div>
 
-      <section id="tab-gallery"><div id="gallery" class="grid"></div></section>
+      <section id="tab-graph">
+        <div class="graph-frame">
+          <svg id="graph-svg"></svg>
+          <div class="graph-tooltip" id="graph-tooltip"></div>
+        </div>
+        <div class="graph-stats" id="graph-stats"></div>
+        <div class="legend" id="graph-legend"></div>
+      </section>
+      <section id="tab-gallery" hidden><div id="gallery" class="grid"></div></section>
       <section id="tab-queue" hidden><div id="queue" class="grid"></div></section>
       <section id="tab-results" hidden><div id="results" class="grid"></div></section>
     </main>
@@ -427,12 +502,13 @@
       const queueBadge = $("queue-badge");
 
       const tabs = {
+        graph: $("tab-graph"),
         gallery: $("tab-gallery"),
         queue: $("tab-queue"),
         results: $("tab-results"),
       };
       const DEFAULT_PLACEHOLDER = "https://en.wikipedia.org/wiki/Octopus";
-      let currentTab = "gallery";
+      let currentTab = "graph";
       let currentResultsUrl = null;
       let pollTimer = null;
 
@@ -483,6 +559,11 @@
           b.classList.toggle("active", b.dataset.tab === name);
         });
         $("results-toolbar").hidden = name !== "results";
+        if (name === "graph") {
+          qInput.placeholder = DEFAULT_PLACEHOLDER;
+          currentResultsUrl = null;
+          loadGraph();
+        }
         if (name === "gallery") {
           qInput.placeholder = DEFAULT_PLACEHOLDER;
           currentResultsUrl = null;
@@ -601,28 +682,32 @@
       function fmtDate(ts) { return new Date(ts).toLocaleString(); }
 
       const CATEGORY_META = {
-        person:       { label: "Person",       icon: "user-circle" },
-        place:        { label: "Place",        icon: "map-pin" },
-        event:        { label: "Event",        icon: "clock-clockwise" },
-        science:      { label: "Science",      icon: "flask" },
-        technology:   { label: "Technology",   icon: "cpu" },
-        nature:       { label: "Nature",       icon: "leaf" },
-        culture:      { label: "Arts",         icon: "palette" },
-        sports:       { label: "Sports",       icon: "soccer-ball" },
-        food:         { label: "Food",         icon: "fork-knife" },
-        math:         { label: "Math",         icon: "function" },
-        religion:     { label: "Religion",     icon: "cross" },
-        medicine:     { label: "Medicine",     icon: "stethoscope" },
-        transport:    { label: "Transport",    icon: "car" },
-        astronomy:    { label: "Astronomy",    icon: "planet" },
-        architecture: { label: "Architecture", icon: "buildings" },
-        company:      { label: "Company",      icon: "briefcase" },
+        person:       { label: "Person",       icon: "user-circle",     color: "#4f46e5" },
+        place:        { label: "Place",        icon: "map-pin",         color: "#d97706" },
+        event:        { label: "Event",        icon: "clock-clockwise", color: "#e11d48" },
+        science:      { label: "Science",      icon: "flask",           color: "#0284c7" },
+        technology:   { label: "Technology",   icon: "cpu",             color: "#475569" },
+        nature:       { label: "Nature",       icon: "leaf",            color: "#059669" },
+        culture:      { label: "Arts",         icon: "palette",         color: "#c026d3" },
+        sports:       { label: "Sports",       icon: "soccer-ball",     color: "#ea580c" },
+        food:         { label: "Food",         icon: "fork-knife",      color: "#dc2626" },
+        math:         { label: "Math",         icon: "function",        color: "#0891b2" },
+        religion:     { label: "Religion",     icon: "cross",           color: "#ca8a04" },
+        medicine:     { label: "Medicine",     icon: "stethoscope",     color: "#db2777" },
+        transport:    { label: "Transport",    icon: "car",             color: "#0d9488" },
+        astronomy:    { label: "Astronomy",    icon: "planet",          color: "#7c3aed" },
+        architecture: { label: "Architecture", icon: "buildings",       color: "#57534e" },
+        company:      { label: "Company",      icon: "briefcase",       color: "#65a30d" },
       };
+      const UNCATEGORIZED_COLOR = "#94a3b8";
+      function categoryColor(key) {
+        return CATEGORY_META[key]?.color || UNCATEGORIZED_COLOR;
+      }
       function categoryBadge(key) {
         if (!key) return "";
         const meta = CATEGORY_META[key];
         if (!meta) return `<div class="cat">${escape(key)}</div>`;
-        return `<div class="cat"><i class="ph ph-${meta.icon}"></i>${escape(meta.label)}</div>`;
+        return `<div class="cat" style="--c:${meta.color}"><i class="ph ph-${meta.icon}"></i>${escape(meta.label)}</div>`;
       }
 
       function cardHtml(row, opts = {}) {
@@ -819,8 +904,127 @@
         }
       });
 
+      let graphSimulation = null;
+      async function loadGraph() {
+        const svgEl = $("graph-svg");
+        const tooltipEl = $("graph-tooltip");
+        const statsEl = $("graph-stats");
+        const legendEl = $("graph-legend");
+
+        // Wait for d3 to be ready (defer-loaded)
+        if (typeof d3 === "undefined") {
+          await new Promise((res) => setTimeout(res, 100));
+          if (typeof d3 === "undefined") {
+            statsEl.textContent = "Graph library failed to load.";
+            return;
+          }
+        }
+
+        let rows;
+        try {
+          const r = await fetch("/gallery");
+          const d = await r.json();
+          rows = d.results || [];
+        } catch {
+          statsEl.textContent = "Failed to load graph data.";
+          return;
+        }
+
+        if (!rows.length) {
+          statsEl.textContent = "No infographics yet — generate one above.";
+          d3.select(svgEl).selectAll("*").remove();
+          legendEl.innerHTML = "";
+          return;
+        }
+
+        const nodes = rows.map((row) => ({
+          id: row.id,
+          title: row.wiki_title || row.wiki_url,
+          url: row.wiki_url,
+          category: row.category || null,
+          color: categoryColor(row.category),
+        }));
+
+        // Cluster centers per category arranged on a circle
+        const cats = [...new Set(nodes.map((n) => n.category))];
+        const w = svgEl.clientWidth;
+        const h = svgEl.clientHeight;
+        const cx = w / 2;
+        const cy = h / 2;
+        const r = Math.min(w, h) * 0.32;
+        const centers = {};
+        cats.forEach((cat, i) => {
+          const angle = (i / cats.length) * 2 * Math.PI - Math.PI / 2;
+          centers[cat ?? "_"] = { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r };
+        });
+
+        if (graphSimulation) graphSimulation.stop();
+
+        const svg = d3.select(svgEl);
+        svg.selectAll("*").remove();
+
+        const node = svg
+          .selectAll("circle")
+          .data(nodes, (d) => d.id)
+          .join("circle")
+          .attr("r", 6)
+          .attr("fill", (d) => d.color)
+          .attr("stroke", "white")
+          .attr("stroke-width", 1.5)
+          .style("cursor", "pointer")
+          .on("mouseover", (event, d) => {
+            tooltipEl.classList.add("show");
+            const cat = d.category
+              ? `<span class="gt-cat">${escape(d.category)}</span>`
+              : "";
+            tooltipEl.innerHTML = `${cat}${escape(d.title)}`;
+          })
+          .on("mousemove", (event) => {
+            const rect = svgEl.getBoundingClientRect();
+            tooltipEl.style.left = event.clientX - rect.left + 12 + "px";
+            tooltipEl.style.top = event.clientY - rect.top + 12 + "px";
+          })
+          .on("mouseout", () => tooltipEl.classList.remove("show"))
+          .on("click", (event, d) => viewByUrl(d.url));
+
+        graphSimulation = d3
+          .forceSimulation(nodes)
+          .alphaDecay(0.04)
+          .force("charge", d3.forceManyBody().strength(-12))
+          .force("collide", d3.forceCollide(8))
+          .force(
+            "x",
+            d3.forceX((d) => centers[d.category ?? "_"]?.x ?? cx).strength(0.12),
+          )
+          .force(
+            "y",
+            d3.forceY((d) => centers[d.category ?? "_"]?.y ?? cy).strength(0.12),
+          )
+          .on("tick", () => {
+            node.attr("cx", (d) => d.x).attr("cy", (d) => d.y);
+          });
+
+        // Stats + legend
+        const counts = {};
+        for (const n of nodes) counts[n.category ?? "uncategorized"] = (counts[n.category ?? "uncategorized"] ?? 0) + 1;
+        statsEl.textContent = `${nodes.length} infographics across ${Object.keys(counts).length} categories.`;
+        legendEl.innerHTML = Object.entries(counts)
+          .sort((a, b) => b[1] - a[1])
+          .map(([cat, n]) => {
+            const meta = CATEGORY_META[cat];
+            const color = meta?.color || UNCATEGORIZED_COLOR;
+            const label = meta?.label || (cat === "uncategorized" ? "Uncategorized" : cat);
+            return `<span class="item"><span class="dot" style="background:${color}"></span>${escape(label)} · ${n}</span>`;
+          })
+          .join("");
+      }
+
+      window.addEventListener("resize", () => {
+        if (currentTab === "graph") loadGraph();
+      });
+
       (function init() {
-        showTab("gallery");
+        showTab("graph");
       })();
     </script>
   </body>
