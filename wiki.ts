@@ -79,19 +79,21 @@ export function buildInfoboxPrompt(args: {
   pageTitle: string;
   pageDescription?: string;
   infobox: Array<{ key: string; value: string }>;
-  style?: string;
+  isPlace?: boolean;
 }): string {
-  const { pageTitle, pageDescription, infobox, style } = args;
+  const { pageTitle, pageDescription, infobox, isPlace } = args;
   const lines = infobox
-    .slice(0, 12)
+    .slice(0, 16)
     .map((p) => `- ${p.key}: ${p.value}`)
     .join("\n");
   return [
-    `Create a "key facts" infographic for the Wikipedia article "${pageTitle}", visualizing the article's right-rail infobox as a stat-card layout.`,
-    pageDescription ? `Page subject: ${pageDescription}.` : "",
-    `Render the page title prominently and arrange each fact below as a labeled callout (small icon + label + value). Keep callouts compact, scannable, and faithful to the values given.`,
-    `Facts to include (verbatim values):\n${lines}`,
-    `Style: ${style ?? DEFAULT_STYLE} No logos, watermarks, or fictional sources.`,
+    `Create a strictly text-and-data vertical sidebar panel for "${pageTitle}". This is a key-facts column — like a Wikipedia infobox or a museum object label. The composition is long and narrow (single tall column).`,
+    pageDescription ? `Subject: ${pageDescription}.` : "",
+    `ABSOLUTE RULES: no portraits, no faces, no people, no photographs, no scenes, no illustrations of the subject, no decorative imagery, no equations, no diagrams.${isPlace ? " The ONLY exception is a small simple location pin or country/region outline glyph at the very top — no detailed map, no photographs." : " No imagery at all."}`,
+    `Layout: bold all-caps title at top in heavy sans-serif. Thin black rule beneath. Then a vertical stack of label/value pairs running top-to-bottom: each row is the label in small caps muted gray on the left, value in larger black on the right. Subtle thin dividers between rows. Generous vertical breathing room. Plate number or "KEY FACTS" eyebrow above the title in small caps.`,
+    `Palette: warm cream paper #F4ECD8, deep ink #14171F, single muted accent #283B59. No other colors. No backgrounds beyond the cream.`,
+    `Facts to include verbatim, in this order:\n${lines}`,
+    `Render only the typographic panel described. No watermarks, no logos, no fictional sources, no signatures.`,
   ]
     .filter(Boolean)
     .join("\n\n");

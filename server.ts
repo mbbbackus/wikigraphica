@@ -176,20 +176,23 @@ async function fanOutSectionsAndInfobox(args: {
       "infobox",
       Date.now(),
     );
+    const isPlace =
+      categoryKey === "place" ||
+      (categoryKey && CATEGORY_BY_KEY[categoryKey]?.parent === "place");
     const prompt = buildInfoboxPrompt({
       pageTitle: summary.title,
       pageDescription: summary.description,
       infobox: structure.infobox,
-      style,
+      isPlace: !!isPlace,
     });
-    console.log(`gen ${id} INFOBOX page="${summary.title}"`);
+    console.log(`gen ${id} INFOBOX page="${summary.title}" isPlace=${!!isPlace}`);
     generateOne(id, prompt, {
       lang,
       title: `${summary.title} — Infobox`,
       description: summary.description,
       extract: structure.infobox.map((p) => `${p.key}: ${p.value}`).join("\n"),
       categoryKey,
-      size: "768x1536",
+      size: "640x1536",
     }).catch((e) => console.warn("infobox gen failed", e));
   }
 
