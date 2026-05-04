@@ -291,26 +291,40 @@
       #tab-graph .graph-tooltip {
         position: absolute;
         pointer-events: none;
-        background: rgba(20, 20, 20, 0.92);
+        background: rgba(20, 20, 20, 0.94);
         color: white;
-        padding: 6px 10px;
-        border-radius: 6px;
+        padding: 6px;
+        border-radius: 8px;
         font-size: 12px;
-        max-width: 260px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        width: 200px;
         opacity: 0;
         transition: opacity 0.12s ease;
         z-index: 5;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.35);
       }
       #tab-graph .graph-tooltip.show { opacity: 1; }
+      #tab-graph .graph-tooltip .gt-img {
+        display: block;
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        object-fit: cover;
+        border-radius: 4px;
+        margin-bottom: 6px;
+        background: #2a2a2a;
+      }
+      #tab-graph .graph-tooltip .gt-text { padding: 0 4px 4px; }
       #tab-graph .graph-tooltip .gt-cat {
-        font-size: 10px;
+        display: block;
+        font-size: 9px;
         text-transform: uppercase;
-        letter-spacing: 0.06em;
+        letter-spacing: 0.08em;
         opacity: 0.7;
-        margin-right: 6px;
+        margin-bottom: 2px;
+      }
+      #tab-graph .graph-tooltip .gt-title {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       #tab-graph .legend {
         display: flex;
@@ -952,6 +966,7 @@
           url: row.wiki_url,
           category: row.category || null,
           color: categoryColor(row.category),
+          imageUrl: row.image_url || null,
           r: NODE_R,
         }));
         const links = linksRaw.map((l) => ({ source: l.source, target: l.target }));
@@ -1007,10 +1022,13 @@
         node
           .on("mouseover", (event, d) => {
             tooltipEl.classList.add("show");
+            const img = d.imageUrl
+              ? `<img class="gt-img" src="${escape(d.imageUrl)}" alt="" />`
+              : "";
             const cat = d.category
               ? `<span class="gt-cat">${escape(d.category)}</span>`
               : "";
-            tooltipEl.innerHTML = `${cat}${escape(d.title)}`;
+            tooltipEl.innerHTML = `${img}<div class="gt-text">${cat}<div class="gt-title">${escape(d.title)}</div></div>`;
             const adj = neighbors.get(d.id) || new Set();
             node.attr("opacity", (n) => (n.id === d.id || adj.has(n.id) ? 1 : 0.12));
             link
