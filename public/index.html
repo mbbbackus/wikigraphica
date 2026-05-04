@@ -911,13 +911,13 @@
         const statsEl = $("graph-stats");
         const legendEl = $("graph-legend");
 
-        // Wait for d3 to be ready (defer-loaded)
-        if (typeof d3 === "undefined") {
+        // Wait for d3 (defer-loaded) — poll up to ~3s
+        for (let i = 0; typeof d3 === "undefined" && i < 30; i++) {
           await new Promise((res) => setTimeout(res, 100));
-          if (typeof d3 === "undefined") {
-            statsEl.textContent = "Graph library failed to load.";
-            return;
-          }
+        }
+        if (typeof d3 === "undefined") {
+          statsEl.textContent = "Graph library failed to load.";
+          return;
         }
 
         let rows;
@@ -1023,9 +1023,14 @@
         if (currentTab === "graph") loadGraph();
       });
 
-      (function init() {
+      function init() {
         showTab("graph");
-      })();
+      }
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init);
+      } else {
+        init();
+      }
     </script>
   </body>
 </html>
