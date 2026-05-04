@@ -34,7 +34,7 @@
       .brand { font-weight: 600; font-size: 18px; letter-spacing: -0.01em; }
       .topbar .tagline { color: var(--muted); font-size: 14px; margin: 0; }
       main { max-width: 1200px; margin: 0 auto; padding: 24px 24px 96px; }
-      form.search { display: flex; gap: 8px; margin-bottom: 16px; }
+      form.search { display: flex; gap: 8px; margin-bottom: 4px; }
       input[type="text"] {
         flex: 1;
         padding: 12px 14px;
@@ -68,7 +68,6 @@
         border: 1px solid var(--border);
         border-radius: 10px;
         padding: 3px;
-        margin-bottom: 20px;
       }
       .tab {
         background: transparent;
@@ -104,10 +103,19 @@
       .status {
         font-size: 13px;
         color: var(--muted);
-        min-height: 18px;
-        margin-bottom: 8px;
+        margin: 4px 0 0;
       }
+      .status:empty { display: none; }
       .status.error { color: var(--error); }
+      .toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin: 12px 0 18px;
+      }
+      .results-toolbar { position: relative; }
+      .results-toolbar[hidden] { display: none; }
       .grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -260,6 +268,74 @@
       }
       @keyframes spin { to { transform: rotate(360deg); } }
       .empty { color: var(--muted); font-size: 14px; padding: 24px 0; }
+
+      /* Results page: single full-width column, no metadata, big images */
+      #tab-results .grid {
+        grid-template-columns: 1fr;
+        gap: 24px;
+        max-width: 100%;
+      }
+      #tab-results .card {
+        border-radius: 16px;
+        cursor: zoom-in;
+      }
+      #tab-results .card .img-wrap { aspect-ratio: auto; }
+      #tab-results .card .img-wrap img {
+        width: 100%;
+        height: auto;
+        object-fit: contain;
+      }
+      #tab-results .card:hover .img-wrap img { filter: none; }
+      #tab-results .card .meta,
+      #tab-results .card .card-actions { display: none; }
+
+      /* Top-row regenerate button (results page) */
+      .results-toolbar .regen-btn {
+        font-size: 13px;
+        padding: 7px 14px;
+        background: var(--accent);
+        color: white;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        font-family: inherit;
+        font-weight: 500;
+      }
+      .results-toolbar .regen-menu {
+        position: absolute;
+        top: 100%;
+        right: 0;
+        margin-top: 4px;
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+        padding: 4px;
+        min-width: 220px;
+        max-height: 320px;
+        overflow-y: auto;
+        z-index: 10;
+        display: none;
+      }
+      .results-toolbar:hover .regen-menu,
+      .results-toolbar:focus-within .regen-menu { display: block; }
+      .results-toolbar .regen-item {
+        font-size: 13px;
+        color: var(--fg);
+        padding: 6px 10px;
+        cursor: pointer;
+        border-radius: 4px;
+        white-space: nowrap;
+      }
+      .results-toolbar .regen-item:hover { background: var(--accent-soft); color: var(--accent); }
+      .results-toolbar .regen-divider { height: 1px; background: var(--border); margin: 4px 0; }
+      .results-toolbar .regen-section {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        padding: 6px 10px 2px;
+      }
       .lightbox {
         position: fixed;
         inset: 0;
@@ -298,13 +374,33 @@
         />
         <button id="submit" type="submit">Generate</button>
       </form>
-      <div id="status" class="status"></div>
-
-      <div class="tabs">
-        <button class="tab" data-tab="gallery">Gallery</button>
-        <button class="tab" data-tab="queue">My stuff <span class="badge" id="queue-badge" hidden>0</span></button>
-        <button class="tab" data-tab="results">Results</button>
+      <div class="toolbar">
+        <div class="tabs">
+          <button class="tab" data-tab="gallery">Gallery</button>
+          <button class="tab" data-tab="queue">My stuff <span class="badge" id="queue-badge" hidden>0</span></button>
+          <button class="tab" data-tab="results">Results</button>
+        </div>
+        <div class="results-toolbar" id="results-toolbar" hidden tabindex="0">
+          <button type="button" class="regen-btn">↻ Regenerate ▾</button>
+          <div class="regen-menu" id="results-regen-menu">
+            <div class="regen-section">Pick a style</div>
+            <div class="regen-item" data-cat="">Auto (classify)</div>
+            <div class="regen-item" data-cat="default">Default editorial</div>
+            <div class="regen-divider"></div>
+            <div class="regen-item" data-cat="person">Person — portrait</div>
+            <div class="regen-item" data-cat="place">Place — map</div>
+            <div class="regen-item" data-cat="event">Event — timeline</div>
+            <div class="regen-item" data-cat="science">Science — diagram</div>
+            <div class="regen-item" data-cat="technology">Technology — schematic</div>
+            <div class="regen-item" data-cat="nature">Nature — naturalist</div>
+            <div class="regen-item" data-cat="culture">Arts &amp; culture</div>
+            <div class="regen-item" data-cat="sports">Sports — pitch</div>
+            <div class="regen-item" data-cat="food">Food — recipe card</div>
+            <div class="regen-item" data-cat="math">Math — formula</div>
+          </div>
+        </div>
       </div>
+      <div id="status" class="status"></div>
 
       <section id="tab-gallery"><div id="gallery" class="grid"></div></section>
       <section id="tab-queue" hidden><div id="queue" class="grid"></div></section>
@@ -382,6 +478,7 @@
         document.querySelectorAll(".tab").forEach((b) => {
           b.classList.toggle("active", b.dataset.tab === name);
         });
+        $("results-toolbar").hidden = name !== "results";
         if (name === "gallery") {
           qInput.placeholder = DEFAULT_PLACEHOLDER;
           currentResultsUrl = null;
@@ -393,6 +490,13 @@
           loadQueue();
         }
       }
+
+      $("results-regen-menu").addEventListener("click", (e) => {
+        const item = e.target.closest(".regen-item");
+        if (!item) return;
+        if (!currentResultsUrl) return;
+        regenerate(currentResultsUrl, item.dataset.cat || null);
+      });
       document.querySelectorAll(".tab").forEach((b) =>
         b.addEventListener("click", () => showTab(b.dataset.tab)),
       );
