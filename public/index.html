@@ -363,6 +363,7 @@
         color: var(--muted);
         margin-top: 4px;
       }
+      #tab-graph .icon-wrap { transition: opacity 0.12s ease; }
       #tab-graph .icon-wrap-inner {
         width: 100%;
         height: 100%;
@@ -376,7 +377,9 @@
         border: 3px solid white;
         box-sizing: border-box;
         overflow: hidden;
+        pointer-events: none;
       }
+      #tab-graph .icon-wrap-inner * { pointer-events: none; }
       #tab-graph .icon-wrap-inner img {
         width: 100%;
         height: 100%;
@@ -1297,6 +1300,32 @@
           graphRotationRaf = requestAnimationFrame(spin);
         }
         graphRotationRaf = requestAnimationFrame(spin);
+
+        // Dim any expanded rectangle the user's cursor moves over so they can
+        // see nodes underneath and hover them. Pointer-events on the rectangle
+        // are already disabled, so this is purely a visibility tweak.
+        if (svgEl._wgMouseMove) {
+          svgEl.removeEventListener("mousemove", svgEl._wgMouseMove);
+          svgEl.removeEventListener("mouseleave", svgEl._wgMouseLeave);
+        }
+        svgEl._wgMouseMove = (e) => {
+          iconLayer.selectAll(".icon-wrap").each(function () {
+            const r = this.getBoundingClientRect();
+            const inside =
+              e.clientX >= r.left &&
+              e.clientX <= r.right &&
+              e.clientY >= r.top &&
+              e.clientY <= r.bottom;
+            this.style.opacity = inside ? "0.18" : "";
+          });
+        };
+        svgEl._wgMouseLeave = () => {
+          iconLayer.selectAll(".icon-wrap").each(function () {
+            this.style.opacity = "";
+          });
+        };
+        svgEl.addEventListener("mousemove", svgEl._wgMouseMove);
+        svgEl.addEventListener("mouseleave", svgEl._wgMouseLeave);
 
         // Five staggered cursors: each picks a random visible node, lifetime 5s,
         // staggered by 1s so a different cursor swaps every second.
