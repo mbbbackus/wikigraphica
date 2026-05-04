@@ -436,6 +436,28 @@
         background: var(--card);
         overflow: hidden;
         cursor: zoom-in;
+        position: relative;
+        display: block;
+      }
+      .results-structured .lead-regen-badge {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        background: #000;
+        color: #fff;
+        padding: 6px 10px;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        border: 3px solid #000;
+        border-radius: 4px;
+        display: inline-flex;
+        align-items: center;
+      }
+      .results-structured .lead-regen-badge .spinner {
+        border-top-color: #fff;
+        border-color: rgba(255,255,255,0.4);
       }
       .results-structured .lead-overview img { width: 100%; display: block; }
       .results-structured .lead-overview .placeholder {
@@ -848,17 +870,14 @@
         $("results-toolbar").hidden = name !== "results";
         if (name === "graph") {
           qInput.placeholder = DEFAULT_PLACEHOLDER;
-          currentResultsUrl = null;
           loadGraph();
         }
         if (name === "gallery") {
           qInput.placeholder = DEFAULT_PLACEHOLDER;
-          currentResultsUrl = null;
           loadGallery();
         }
         if (name === "queue") {
           qInput.placeholder = DEFAULT_PLACEHOLDER;
-          currentResultsUrl = null;
           loadQueue();
         }
         saveTab(name);
@@ -893,7 +912,11 @@
       function renderStructuredResults(data, fallbackUrl) {
         const overviews = data.overview_infographics || [];
         const sections = data.sections || [];
-        const lead = overviews.find((i) => i.status === "done") || overviews[0];
+        // Show the latest overview (regardless of status) so a regenerate
+        // immediately reflects on the page as a "Generating…" placeholder.
+        const lead = overviews[0];
+        const latestPending = overviews.find((i) => i.status === "pending");
+        const latestDone = overviews.find((i) => i.status === "done");
         const overviewCategory = overviews.find((i) => i.category)?.category;
         const parentCat = parentOf(overviewCategory) ?? overviewCategory;
         const pageIcon = CATEGORY_META[parentCat]?.icon || "note";
@@ -904,17 +927,27 @@
           "Result";
         const fallbackDesc = data.page?.wiki_description || lead?.wiki_description || "";
 
-        const leadHtml = lead && lead.image_url
-          ? `<a class="lead-overview" data-img="${escape(lead.image_url)}">
-               <img src="${escape(lead.image_url)}" alt="${escape(fallbackTitle)}" />
-             </a>`
-          : `<div class="lead-overview"><div class="placeholder">${
-              lead && lead.status === "pending"
-                ? "Generating overview…"
-                : lead && lead.status === "error"
-                ? "Overview failed"
-                : "No overview yet — paste a URL above to make one."
-            }</div></div>`;
+        // If a regenerate is in flight, keep the previous done image visible
+        // with a "regenerating" badge stacked on top.
+        let leadHtml;
+        if (latestPending && latestDone && latestDone.image_url) {
+          leadHtml = `<a class="lead-overview lead-regenerating" data-img="${escape(latestDone.image_url)}">
+                       <img src="${escape(latestDone.image_url)}" alt="${escape(fallbackTitle)}" />
+                       <div class="lead-regen-badge"><span class="spinner"></span>Regenerating…</div>
+                     </a>`;
+        } else if (lead && lead.image_url) {
+          leadHtml = `<a class="lead-overview" data-img="${escape(lead.image_url)}">
+                       <img src="${escape(lead.image_url)}" alt="${escape(fallbackTitle)}" />
+                     </a>`;
+        } else {
+          leadHtml = `<div class="lead-overview"><div class="placeholder">${
+            lead && lead.status === "pending"
+              ? '<span class="spinner"></span>Generating overview…'
+              : lead && lead.status === "error"
+              ? "Overview failed"
+              : "No overview yet — paste a URL above to make one."
+          }</div></div>`;
+        }
 
         // Prefer the generated infobox infographic image. Fall back to raw KV list.
         const infoboxSection = sections.find((s) => s.kind === "infobox");
@@ -1044,6 +1077,16 @@
       });
 
       async function regenerate(wikiUrl, category) {
+        if (!wikiUrl) {
+          setStatus("Open a page first by clicking a card.", true);
+          return;
+        }
+        const trigger = document.querySelector(".results-toolbar .regen-btn");
+        const original = trigger?.textContent;
+        if (trigger) {
+          trigger.disabled = true;
+          trigger.textContent = "↻ Queuing…";
+        }
         try {
           const body = { url: wikiUrl };
           if (category) body.category = category;
@@ -1055,11 +1098,22 @@
           const d = await r.json();
           if (!r.ok) throw new Error(d.error || "failed");
           if (d.infographic?.id) addMyId(d.infographic.id);
+          if (trigger) trigger.textContent = "↻ Queued";
           managePolling(true);
           if (currentTab === "queue") loadQueue();
           if (currentTab === "results") viewByUrl(wikiUrl);
+          setTimeout(() => {
+            if (trigger) {
+              trigger.disabled = false;
+              trigger.textContent = original ?? "↻ Regenerate ▾";
+            }
+          }, 1200);
         } catch (err) {
           setStatus("Error: " + err.message, true);
+          if (trigger) {
+            trigger.disabled = false;
+            trigger.textContent = original ?? "↻ Regenerate ▾";
+          }
         }
       }
 
