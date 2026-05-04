@@ -362,17 +362,31 @@
       #tab-graph .icon-wrap-inner {
         width: 100%;
         height: 100%;
-        border-radius: 50%;
+        border-radius: 8px;
         background: var(--c, #555);
         color: white;
         display: flex;
         align-items: center;
         justify-content: center;
-        box-shadow: 0 4px 14px rgba(0,0,0,0.25);
-        border: 2px solid white;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+        border: 3px solid white;
         box-sizing: border-box;
+        overflow: hidden;
       }
-      #tab-graph .icon-wrap-inner i { font-size: 18px; line-height: 1; }
+      #tab-graph .icon-wrap-inner img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      #tab-graph .icon-wrap-inner .placeholder {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #tab-graph .icon-wrap-inner .placeholder i { font-size: 28px; line-height: 1; }
       #tab-graph .legend .item i {
         font-size: 14px;
         line-height: 1;
@@ -1022,7 +1036,8 @@
         }
 
         const NODE_R = 6;
-        const NODE_R_HOVER = 18;
+        const EXPANDED_SIZE = 100; // px square for the infographic preview
+        const NODE_R_HOVER = 56;   // collision radius (~ rectangle bounding circle)
         const nodes = nodesRaw.map((row) => ({
           id: row.id,
           title: row.wiki_title || row.wiki_url,
@@ -1109,27 +1124,40 @@
             .enter()
             .append("foreignObject")
             .attr("class", "icon-wrap")
-            .attr("width", NODE_R_HOVER * 2 + 6)
-            .attr("height", NODE_R_HOVER * 2 + 6)
+            .attr("width", EXPANDED_SIZE)
+            .attr("height", EXPANDED_SIZE)
             .style("overflow", "visible")
             .style("pointer-events", "none");
           enter
             .append("xhtml:div")
             .attr("class", "icon-wrap-inner")
             .style("--c", (d) => d.color)
-            .html((d) => `<i class="ph ph-${categoryIcon(d.category)}"></i>`);
+            .html((d) =>
+              d.imageUrl
+                ? `<img src="${escape(d.imageUrl)}" alt="${escape(d.title)}" />`
+                : `<div class="placeholder"><i class="ph ph-${categoryIcon(d.category)}"></i></div>`,
+            );
           sel.exit().remove();
         }
 
         function setHoverHighlight(d) {
+          const ids = activeIds();
           if (!d) {
-            node.attr("opacity", (n) => (nodeIsVisible(n) ? 1 : 0));
+            node.attr("opacity", (n) =>
+              !nodeIsVisible(n) ? 0 : ids.has(n.id) ? 0 : 1,
+            );
             link.attr("stroke-opacity", 0.25).attr("stroke", "#94a3b8");
             return;
           }
           const adj = neighbors.get(d.id) || new Set();
           node.attr("opacity", (n) =>
-            !nodeIsVisible(n) ? 0 : n.id === d.id || adj.has(n.id) ? 1 : 0.12,
+            !nodeIsVisible(n)
+              ? 0
+              : ids.has(n.id)
+              ? 0 // hidden behind expanded rectangle
+              : n.id === d.id || adj.has(n.id)
+              ? 1
+              : 0.12,
           );
           link
             .attr("stroke-opacity", (l) =>
@@ -1145,8 +1173,12 @@
           nodes.forEach((n) => {
             n.r = ids.has(n.id) ? NODE_R_HOVER : NODE_R;
           });
+          // Hide circles that are about to be covered by an expanded rectangle
+          node.attr("opacity", (n) =>
+            !nodeIsVisible(n) ? 0 : ids.has(n.id) ? 0 : 1,
+          );
           graphSimulation.alphaTarget(0.25).restart();
-          setTimeout(() => graphSimulation.alphaTarget(0), 1200);
+          setTimeout(() => graphSimulation.alphaTarget(0), 1500);
         }
 
         node
@@ -1243,8 +1275,8 @@
             node.attr("cx", (d) => d.x).attr("cy", (d) => d.y).attr("r", (d) => d.r);
             iconLayer
               .selectAll(".icon-wrap")
-              .attr("x", (d) => d.x - (NODE_R_HOVER + 3))
-              .attr("y", (d) => d.y - (NODE_R_HOVER + 3));
+              .attr("x", (d) => d.x - EXPANDED_SIZE / 2)
+              .attr("y", (d) => d.y - EXPANDED_SIZE / 2);
           });
 
         applyVisibility();
