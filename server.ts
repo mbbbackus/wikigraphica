@@ -18,7 +18,7 @@ import {
   IMAGE_SIZE,
   generateImage,
 } from "./openai";
-import { CATEGORY_BY_KEY, classify } from "./categories";
+import { CATEGORIES, CATEGORY_BY_KEY, classify, getCategoryColor } from "./categories";
 
 const PORT = Number(process.env.PORT ?? 3939);
 const IMAGES_DIR = "data/images";
@@ -140,6 +140,18 @@ const server = Bun.serve({
       } catch (err) {
         return jsonError(err);
       }
+    }
+
+    if (req.method === "GET" && path === "/categories") {
+      return Response.json({
+        categories: CATEGORIES.map((c) => ({
+          key: c.key,
+          label: c.label,
+          icon: c.icon,
+          parent: c.parent ?? null,
+          color: getCategoryColor(c.key) ?? null,
+        })),
+      });
     }
 
     if (req.method === "GET" && path === "/graph") {

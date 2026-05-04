@@ -359,6 +359,25 @@
         color: var(--muted);
         margin-top: 4px;
       }
+      #tab-graph .icon-wrap-inner {
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        background: var(--c, #555);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+        border: 2px solid white;
+        box-sizing: border-box;
+      }
+      #tab-graph .icon-wrap-inner i { font-size: 18px; line-height: 1; }
+      #tab-graph .legend .item i {
+        font-size: 14px;
+        line-height: 1;
+        color: var(--c, var(--muted));
+      }
 
       /* Results page: single full-width column, no metadata, big images */
       #tab-results .grid {
@@ -725,28 +744,46 @@
 
       function fmtDate(ts) { return new Date(ts).toLocaleString(); }
 
-      const CATEGORY_META = {
-        person:       { label: "Person",       icon: "user-circle",     color: "#4f46e5" },
-        place:        { label: "Place",        icon: "map-pin",         color: "#d97706" },
-        event:        { label: "Event",        icon: "clock-clockwise", color: "#e11d48" },
-        science:      { label: "Science",      icon: "flask",           color: "#0284c7" },
-        technology:   { label: "Technology",   icon: "cpu",             color: "#475569" },
-        nature:       { label: "Nature",       icon: "leaf",            color: "#059669" },
-        culture:      { label: "Arts",         icon: "palette",         color: "#c026d3" },
-        sports:       { label: "Sports",       icon: "soccer-ball",     color: "#ea580c" },
-        food:         { label: "Food",         icon: "fork-knife",      color: "#dc2626" },
-        math:         { label: "Math",         icon: "function",        color: "#0891b2" },
-        religion:     { label: "Religion",     icon: "cross",           color: "#ca8a04" },
-        medicine:     { label: "Medicine",     icon: "stethoscope",     color: "#db2777" },
-        transport:    { label: "Transport",    icon: "car",             color: "#0d9488" },
-        astronomy:    { label: "Astronomy",    icon: "planet",          color: "#7c3aed" },
-        architecture: { label: "Architecture", icon: "buildings",       color: "#57534e" },
-        company:      { label: "Company",      icon: "briefcase",       color: "#65a30d" },
-      };
+      // Categories are loaded from /categories at boot. Each entry is
+      // { key, label, icon, parent, color } where color is already inherited
+      // from the parent for sub-types.
+      let CATEGORY_META = {};
       const UNCATEGORIZED_COLOR = "#94a3b8";
+
+      async function loadCategories() {
+        try {
+          const r = await fetch("/categories");
+          const d = await r.json();
+          CATEGORY_META = {};
+          for (const c of d.categories || []) {
+            CATEGORY_META[c.key] = {
+              label: c.label,
+              icon: c.icon,
+              color: c.color || UNCATEGORIZED_COLOR,
+              parent: c.parent || null,
+            };
+          }
+        } catch (err) {
+          console.warn("failed to load /categories", err);
+        }
+      }
+
       function categoryColor(key) {
         return CATEGORY_META[key]?.color || UNCATEGORIZED_COLOR;
       }
+      function categoryIcon(key) {
+        return CATEGORY_META[key]?.icon || "circle";
+      }
+      function categoryLabel(key) {
+        return CATEGORY_META[key]?.label || key || "Uncategorized";
+      }
+      function parentOf(key) {
+        if (!key) return null;
+        const m = CATEGORY_META[key];
+        if (!m) return key;
+        return m.parent || key;
+      }
+
       function categoryBadge(key) {
         if (!key) return "";
         const meta = CATEGORY_META[key];
@@ -949,7 +986,9 @@
       });
 
       let graphSimulation = null;
-      let graphHidden = new Set();
+      let graphHidden = new Set(); // hidden parent keys
+      let graphCursorsTimer = null;
+      let graphRotationRaf = null;
       async function loadGraph() {
         const svgEl = $("graph-svg");
         const tooltipEl = $("graph-tooltip");
@@ -983,12 +1022,13 @@
         }
 
         const NODE_R = 6;
-        const NODE_R_HOVER = 16;
+        const NODE_R_HOVER = 18;
         const nodes = nodesRaw.map((row) => ({
           id: row.id,
           title: row.wiki_title || row.wiki_url,
           url: row.wiki_url,
           category: row.category || null,
+          parentCat: parentOf(row.category) || null,
           color: categoryColor(row.category),
           imageUrl: row.image_url || null,
           r: NODE_R,
@@ -1003,28 +1043,32 @@
           neighbors.get(l.target)?.add(l.source);
         }
 
-        // Category cluster centers
-        const cats = [...new Set(nodes.map((n) => n.category))];
+        // Cluster by PARENT category so sub-types in the same family pull together.
+        const parentCats = [...new Set(nodes.map((n) => n.parentCat))];
         const w = svgEl.clientWidth;
         const h = svgEl.clientHeight;
         const cx = w / 2;
         const cy = h / 2;
-        const ringR = Math.min(w, h) * 0.32;
+        const ringR = Math.min(w, h) * 0.34;
         const centers = {};
-        cats.forEach((cat, i) => {
-          const angle = (i / cats.length) * 2 * Math.PI - Math.PI / 2;
+        parentCats.forEach((cat, i) => {
+          const angle = (i / parentCats.length) * 2 * Math.PI - Math.PI / 2;
           centers[cat ?? "_"] = { x: cx + Math.cos(angle) * ringR, y: cy + Math.sin(angle) * ringR };
         });
 
         if (graphSimulation) graphSimulation.stop();
+        if (graphCursorsTimer) clearTimeout(graphCursorsTimer);
+        if (graphRotationRaf) cancelAnimationFrame(graphRotationRaf);
 
         const svg = d3.select(svgEl);
         svg.selectAll("*").remove();
 
-        const root = svg.append("g").attr("class", "zoom-root");
+        const rotateRoot = svg.append("g").attr("class", "rotate-root");
+        const root = rotateRoot.append("g").attr("class", "zoom-root");
         const linkLayer = root.append("g").attr("class", "links")
           .attr("stroke", "#94a3b8").attr("stroke-opacity", 0.25);
         const nodeLayer = root.append("g").attr("class", "nodes");
+        const iconLayer = root.append("g").attr("class", "icon-overlays");
 
         const link = linkLayer
           .selectAll("line")
@@ -1042,50 +1086,95 @@
           .attr("stroke-width", 1.5)
           .style("cursor", "pointer");
 
-        // Tooltip + click + hover highlight + grow + reflow
+        // Tracks which nodes currently get the icon-wrapper treatment.
+        const cursorIds = new Set();
+        let hoveredId = null;
+
+        function activeIds() {
+          const s = new Set(cursorIds);
+          if (hoveredId) s.add(hoveredId);
+          return s;
+        }
+        function nodeIsVisible(n) {
+          return !graphHidden.has(n.parentCat);
+        }
+
+        function renderIconOverlays() {
+          const ids = activeIds();
+          const data = nodes.filter((n) => ids.has(n.id) && nodeIsVisible(n));
+          const sel = iconLayer
+            .selectAll(".icon-wrap")
+            .data(data, (d) => d.id);
+          const enter = sel
+            .enter()
+            .append("foreignObject")
+            .attr("class", "icon-wrap")
+            .attr("width", NODE_R_HOVER * 2 + 6)
+            .attr("height", NODE_R_HOVER * 2 + 6)
+            .style("overflow", "visible")
+            .style("pointer-events", "none");
+          enter
+            .append("xhtml:div")
+            .attr("class", "icon-wrap-inner")
+            .style("--c", (d) => d.color)
+            .html((d) => `<i class="ph ph-${categoryIcon(d.category)}"></i>`);
+          sel.exit().remove();
+        }
+
+        function setHoverHighlight(d) {
+          if (!d) {
+            node.attr("opacity", (n) => (nodeIsVisible(n) ? 1 : 0));
+            link.attr("stroke-opacity", 0.25).attr("stroke", "#94a3b8");
+            return;
+          }
+          const adj = neighbors.get(d.id) || new Set();
+          node.attr("opacity", (n) =>
+            !nodeIsVisible(n) ? 0 : n.id === d.id || adj.has(n.id) ? 1 : 0.12,
+          );
+          link
+            .attr("stroke-opacity", (l) =>
+              l.source.id === d.id || l.target.id === d.id ? 0.85 : 0.04,
+            )
+            .attr("stroke", (l) =>
+              l.source.id === d.id || l.target.id === d.id ? d.color : "#94a3b8",
+            );
+        }
+
+        function bumpRadii() {
+          const ids = activeIds();
+          nodes.forEach((n) => {
+            n.r = ids.has(n.id) ? NODE_R_HOVER : NODE_R;
+          });
+          graphSimulation.alphaTarget(0.25).restart();
+          setTimeout(() => graphSimulation.alphaTarget(0), 1200);
+        }
+
         node
           .on("mouseover", (event, d) => {
+            hoveredId = d.id;
             tooltipEl.classList.add("show");
             const img = d.imageUrl
               ? `<img class="gt-img" src="${escape(d.imageUrl)}" alt="" />`
               : "";
-            const cat = d.category
-              ? `<span class="gt-cat">${escape(d.category)}</span>`
+            const catLabel = d.category
+              ? `<span class="gt-cat"><i class="ph ph-${categoryIcon(d.category)}"></i> ${escape(categoryLabel(d.category))}</span>`
               : "";
-            tooltipEl.innerHTML = `${img}<div class="gt-text">${cat}<div class="gt-title">${escape(d.title)}</div></div>`;
-            const adj = neighbors.get(d.id) || new Set();
-            node.attr("opacity", (n) => (n.id === d.id || adj.has(n.id) ? 1 : 0.12));
-            link
-              .attr("stroke-opacity", (l) =>
-                l.source.id === d.id || l.target.id === d.id ? 0.85 : 0.04,
-              )
-              .attr("stroke", (l) =>
-                l.source.id === d.id || l.target.id === d.id ? d.color : "#94a3b8",
-              );
-            d.r = NODE_R_HOVER;
-            d3.select(event.currentTarget)
-              .transition()
-              .duration(160)
-              .attr("r", NODE_R_HOVER)
-              .attr("stroke-width", 2.5);
-            graphSimulation.alphaTarget(0.35).restart();
+            tooltipEl.innerHTML = `${img}<div class="gt-text">${catLabel}<div class="gt-title">${escape(d.title)}</div></div>`;
+            setHoverHighlight(d);
+            renderIconOverlays();
+            bumpRadii();
           })
           .on("mousemove", (event) => {
             const rect = svgEl.getBoundingClientRect();
             tooltipEl.style.left = event.clientX - rect.left + 12 + "px";
             tooltipEl.style.top = event.clientY - rect.top + 12 + "px";
           })
-          .on("mouseout", (event, d) => {
+          .on("mouseout", () => {
+            hoveredId = null;
             tooltipEl.classList.remove("show");
-            node.attr("opacity", (n) => (graphHidden.has(n.category) ? 0 : 1));
-            link.attr("stroke-opacity", 0.25).attr("stroke", "#94a3b8");
-            d.r = NODE_R;
-            d3.select(event.currentTarget)
-              .transition()
-              .duration(220)
-              .attr("r", NODE_R)
-              .attr("stroke-width", 1.5);
-            graphSimulation.alphaTarget(0);
+            setHoverHighlight(null);
+            renderIconOverlays();
+            bumpRadii();
           })
           .on("click", (event, d) => {
             if (event.defaultPrevented) return; // drag
@@ -1117,12 +1206,15 @@
           .on("zoom", (event) => root.attr("transform", event.transform));
         svg.call(zoom);
 
-        // Apply current legend filters
+        // Apply current legend filters (filter by PARENT)
         function applyVisibility() {
-          node.attr("display", (n) => (graphHidden.has(n.category) ? "none" : null));
+          node.attr("display", (n) => (graphHidden.has(n.parentCat) ? "none" : null));
           link.attr("display", (l) =>
-            graphHidden.has(l.source.category) || graphHidden.has(l.target.category) ? "none" : null,
+            graphHidden.has(l.source.parentCat) || graphHidden.has(l.target.parentCat)
+              ? "none"
+              : null,
           );
+          if (typeof renderIconOverlays === "function") renderIconOverlays();
         }
 
         graphSimulation = d3
@@ -1148,26 +1240,94 @@
               .attr("y1", (d) => d.source.y)
               .attr("x2", (d) => d.target.x)
               .attr("y2", (d) => d.target.y);
-            node.attr("cx", (d) => d.x).attr("cy", (d) => d.y);
+            node.attr("cx", (d) => d.x).attr("cy", (d) => d.y).attr("r", (d) => d.r);
+            iconLayer
+              .selectAll(".icon-wrap")
+              .attr("x", (d) => d.x - (NODE_R_HOVER + 3))
+              .attr("y", (d) => d.y - (NODE_R_HOVER + 3));
           });
 
         applyVisibility();
 
-        // Stats + legend (clickable to toggle visibility)
-        const counts = {};
-        for (const n of nodes)
-          counts[n.category ?? "uncategorized"] =
-            (counts[n.category ?? "uncategorized"] ?? 0) + 1;
-        statsEl.textContent = `${nodes.length} infographics · ${links.length} connections · ${Object.keys(counts).length} categories. Drag nodes · scroll to zoom · click a chip to filter.`;
-        legendEl.innerHTML = Object.entries(counts)
+        // Slow rotation of the entire graph (~ 8 minutes per full turn)
+        let rotAngle = 0;
+        let lastT = performance.now();
+        const DEG_PER_SEC = 360 / 480;
+        function spin(now) {
+          const dt = (now - lastT) / 1000;
+          lastT = now;
+          rotAngle = (rotAngle + DEG_PER_SEC * dt) % 360;
+          rotateRoot.attr("transform", `rotate(${rotAngle} ${cx} ${cy})`);
+          graphRotationRaf = requestAnimationFrame(spin);
+        }
+        graphRotationRaf = requestAnimationFrame(spin);
+
+        // Five staggered cursors: each picks a random visible node, lifetime 5s,
+        // staggered by 1s so a different cursor swaps every second.
+        const NUM_CURSORS = 5;
+        const CURSOR_LIFE = 5000;
+        const STAGGER = 1000;
+        const slots = [];
+        const startNow = Date.now();
+        for (let i = 0; i < NUM_CURSORS; i++) {
+          slots.push({ id: null, expires: startNow + i * STAGGER });
+        }
+        function pickRandomVisible() {
+          const pool = nodes.filter((n) => nodeIsVisible(n));
+          if (!pool.length) return null;
+          return pool[Math.floor(Math.random() * pool.length)];
+        }
+        function tickCursors() {
+          const now = Date.now();
+          let dirty = false;
+          for (const slot of slots) {
+            if (slot.expires <= now) {
+              const oldId = slot.id;
+              let pick = pickRandomVisible();
+              for (let tries = 0; pick && tries < 10; tries++) {
+                if (
+                  pick.id !== oldId &&
+                  !slots.some((s) => s !== slot && s.id === pick.id)
+                )
+                  break;
+                pick = pickRandomVisible();
+              }
+              slot.id = pick?.id ?? null;
+              slot.expires = now + CURSOR_LIFE;
+              dirty = true;
+            }
+          }
+          if (dirty) {
+            cursorIds.clear();
+            for (const s of slots) if (s.id) cursorIds.add(s.id);
+            renderIconOverlays();
+            bumpRadii();
+          }
+          const nextIn = Math.max(
+            100,
+            Math.min(...slots.map((s) => s.expires - now)),
+          );
+          graphCursorsTimer = setTimeout(tickCursors, nextIn);
+        }
+        tickCursors();
+
+        // Stats + legend grouped by PARENT category
+        const parentCounts = {};
+        for (const n of nodes) {
+          const p = n.parentCat || "uncategorized";
+          parentCounts[p] = (parentCounts[p] ?? 0) + 1;
+        }
+        statsEl.textContent = `${nodes.length} infographics · ${links.length} connections · ${Object.keys(parentCounts).length} categories. Hover for details · drag nodes · scroll to zoom.`;
+        legendEl.innerHTML = Object.entries(parentCounts)
           .sort((a, b) => b[1] - a[1])
           .map(([cat, n]) => {
             const meta = CATEGORY_META[cat];
             const color = meta?.color || UNCATEGORIZED_COLOR;
+            const icon = meta?.icon || "circle";
             const label = meta?.label || (cat === "uncategorized" ? "Uncategorized" : cat);
             const key = cat === "uncategorized" ? "" : cat;
             const disabled = graphHidden.has(key) ? " disabled" : "";
-            return `<span class="item${disabled}" data-cat="${escape(key)}"><span class="dot" style="background:${color}"></span>${escape(label)} · ${n}</span>`;
+            return `<span class="item${disabled}" data-cat="${escape(key)}" style="--c:${color}"><i class="ph ph-${icon}"></i>${escape(label)} · ${n}</span>`;
           })
           .join("");
         legendEl.onclick = (e) => {
@@ -1178,6 +1338,12 @@
           else graphHidden.add(cat);
           item.classList.toggle("disabled");
           applyVisibility();
+          // Drop cursors that were on now-hidden nodes
+          for (const slot of slots) {
+            if (!slot.id) continue;
+            const n = nodes.find((nn) => nn.id === slot.id);
+            if (!n || !nodeIsVisible(n)) slot.expires = 0;
+          }
         };
       }
 
@@ -1186,6 +1352,7 @@
       });
 
       async function init() {
+        await loadCategories();
         const params = new URLSearchParams(window.location.search);
         const wiki = params.get("wiki");
         const tabParam = params.get("tab");
