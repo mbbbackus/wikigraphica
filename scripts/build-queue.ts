@@ -111,10 +111,19 @@ async function maybeAdd(entry: Entry): Promise<boolean> {
   return true;
 }
 
+let firstIteration = true;
+
 while (queue.length < TARGET) {
-  // Fresh random seed
-  const seed = await getRandomArticle();
-  await maybeAdd(seed);
+  let seed: Entry;
+  if (firstIteration && queue.length > 0) {
+    // Idempotent restart: continue walking from the most recent entry
+    seed = queue[queue.length - 1];
+    console.log(`Resuming walk from latest entry: ${seed.title}`);
+  } else {
+    seed = await getRandomArticle();
+    await maybeAdd(seed);
+  }
+  firstIteration = false;
 
   // Walk from seed
   let current: Entry = seed;
