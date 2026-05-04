@@ -38,14 +38,33 @@
       }
       .topbar {
         display: flex;
-        justify-content: space-between;
         align-items: center;
-        padding: 14px 24px;
-        border-bottom: 1px solid var(--border);
+        gap: 14px;
+        padding: 12px 24px;
+        border-bottom: 6px solid #000;
         background: white;
+        position: sticky;
+        top: 0;
+        z-index: 50;
       }
-      .brand { font-weight: 600; font-size: 18px; letter-spacing: -0.01em; }
-      .topbar .tagline { color: var(--muted); font-size: 14px; margin: 0; }
+      .brand {
+        font-weight: 700;
+        font-size: 18px;
+        letter-spacing: -0.01em;
+        flex: 0 0 auto;
+      }
+      .topbar .tabs { flex: 0 0 auto; margin: 0; }
+      .topbar form.search { flex: 1 1 auto; min-width: 120px; margin: 0; gap: 8px; }
+      .topbar .results-toolbar { flex: 0 0 auto; }
+      .topbar form.search input { font-size: 14px; padding: 9px 12px; }
+      .topbar form.search #submit { font-size: 14px; padding: 9px 16px; }
+      .topbar .results-toolbar .regen-btn { font-size: 14px; padding: 9px 14px; }
+      input[readonly] {
+        background: var(--card);
+        color: #000;
+        cursor: default;
+        caret-color: transparent;
+      }
       main { max-width: 1200px; margin: 0 auto; padding: 24px 24px 96px; }
       form.search { display: flex; gap: 8px; margin-bottom: 4px; }
       input[type="text"] {
@@ -910,19 +929,23 @@
         document.querySelectorAll(".tab").forEach((b) => {
           b.classList.toggle("active", b.dataset.tab === name);
         });
-        $("results-toolbar").hidden = name !== "results";
-        if (name === "graph") {
+        // Toggle the action area: search+Generate vs locked-URL+Regenerate
+        const onResults = name === "results" && !!currentResultsUrl;
+        $("results-toolbar").hidden = !onResults;
+        submitBtn.hidden = onResults;
+        if (onResults) {
+          qInput.value = currentResultsUrl;
+          qInput.readOnly = true;
+          qInput.required = false;
+        } else {
+          qInput.readOnly = false;
+          qInput.required = true;
+          if (qInput.value === currentResultsUrl) qInput.value = "";
           qInput.placeholder = DEFAULT_PLACEHOLDER;
-          loadGraph();
         }
-        if (name === "gallery") {
-          qInput.placeholder = DEFAULT_PLACEHOLDER;
-          loadGallery();
-        }
-        if (name === "queue") {
-          qInput.placeholder = DEFAULT_PLACEHOLDER;
-          loadQueue();
-        }
+        if (name === "graph") loadGraph();
+        if (name === "gallery") loadGallery();
+        if (name === "queue") loadQueue();
         saveTab(name);
         updateUrl(name, currentResultsUrl);
       }
