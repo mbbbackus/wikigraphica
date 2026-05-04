@@ -41,10 +41,12 @@ async function generateOne(
     description?: string;
     extract?: string;
     categoryKey: string | null;
+    size?: string;
   },
 ) {
   try {
-    const buffer = await generateImage(prompt);
+    const size = meta.size ?? IMAGE_SIZE;
+    const buffer = await generateImage(prompt, { size });
     const imagePath = `${infographicId}.png`;
     await write(join(IMAGES_DIR, imagePath), buffer);
     queries.markDone.run(
@@ -56,7 +58,7 @@ async function generateOne(
       prompt,
       IMAGE_MODEL,
       IMAGE_QUALITY,
-      IMAGE_SIZE,
+      size,
       meta.categoryKey,
       Date.now(),
       infographicId,
@@ -181,6 +183,7 @@ async function fanOutSectionsAndInfobox(args: {
       description: summary.description,
       extract: structure.infobox.map((p) => `${p.key}: ${p.value}`).join("\n"),
       categoryKey,
+      size: "768x1536",
     }).catch((e) => console.warn("infobox gen failed", e));
   }
 

@@ -8,13 +8,13 @@
     <script src="https://d3js.org/d3.v7.min.js" defer></script>
     <style>
       :root {
-        --bg: #f3e6bd;
+        --bg: #fbf5dc;
         --fg: #0a0a0a;
         --muted: #4a4a4a;
         --accent: #2b6cb0;
         --accent-soft: #ebf2fa;
         --border: #000;
-        --card: #fdfbf3;
+        --card: #fffdf2;
         --error: #c53030;
         --bw: 4px;
         --shadow: 6px 6px 0 #000;
@@ -24,8 +24,8 @@
       body {
         background-color: var(--bg);
         background-image:
-          linear-gradient(to right, rgba(70, 45, 0, 0.07) 1px, transparent 1px),
-          linear-gradient(to bottom, rgba(70, 45, 0, 0.07) 1px, transparent 1px);
+          linear-gradient(to right, rgba(80, 60, 0, 0.05) 1px, transparent 1px),
+          linear-gradient(to bottom, rgba(80, 60, 0, 0.05) 1px, transparent 1px);
         background-size: 32px 32px, 32px 32px;
       }
       * { box-sizing: border-box; }
@@ -65,14 +65,16 @@
       button {
         padding: 12px 18px;
         font-size: 15px;
-        font-weight: 500;
-        background: var(--accent);
+        font-weight: 600;
+        background: #000;
         color: white;
-        border: none;
+        border: var(--bw) solid #000;
         border-radius: 8px;
         cursor: pointer;
         font-family: inherit;
       }
+      button:hover { background: #1a1a1a; }
+      button:active { transform: translate(2px, 2px); box-shadow: 0 0 0 #000 !important; }
       button:disabled { opacity: 0.6; cursor: not-allowed; }
       .tabs {
         display: inline-flex;
@@ -97,9 +99,9 @@
       .tab:hover { color: var(--fg); }
       .tab.active {
         color: white;
-        background: var(--accent);
+        background: #000;
       }
-      .tab.active:hover { color: white; }
+      .tab.active:hover { color: white; background: #000; }
       .tab .badge {
         background: rgba(255, 255, 255, 0.25);
         color: inherit;
@@ -162,11 +164,10 @@
       .card-actions .regen-btn {
         font-size: 12px;
         padding: 5px 10px;
-        background: rgba(20, 20, 20, 0.78);
+        background: #000;
         color: white;
-        backdrop-filter: blur(6px);
         border-radius: 6px;
-        border: none;
+        border: 3px solid #000;
         cursor: pointer;
       }
       .card-actions .regen-btn:disabled { opacity: 0.6; cursor: progress; }
@@ -455,6 +456,17 @@
         position: sticky;
         top: 16px;
       }
+      .results-structured .infobox-image {
+        padding: 0;
+        overflow: hidden;
+        cursor: zoom-in;
+        display: block;
+      }
+      .results-structured .infobox-image img {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
       .results-structured .infobox-side h3 {
         margin: 0 0 12px;
         font-size: 12px;
@@ -569,13 +581,13 @@
       .results-toolbar .regen-btn {
         font-size: 13px;
         padding: 7px 14px;
-        background: var(--accent);
+        background: #000;
         color: white;
         border-radius: 8px;
-        border: none;
+        border: var(--bw) solid #000;
         cursor: pointer;
         font-family: inherit;
-        font-weight: 500;
+        font-weight: 600;
       }
       .results-toolbar { padding-bottom: 6px; }
       .results-toolbar .regen-menu {
@@ -834,6 +846,19 @@
       );
 
       const resultsStructuredEl = $("results-structured");
+      const openSections = new Set();
+      resultsStructuredEl.addEventListener(
+        "toggle",
+        (e) => {
+          const det = e.target;
+          if (!det || det.tagName !== "DETAILS") return;
+          const sid = det.dataset.sectionId;
+          if (!sid) return;
+          if (det.open) openSections.add(sid);
+          else openSections.delete(sid);
+        },
+        true,
+      );
 
       function renderStructuredResults(data, fallbackUrl) {
         const overviews = data.overview_infographics || [];
@@ -858,9 +883,22 @@
                 : "No overview yet — paste a URL above to make one."
             }</div></div>`;
 
+        // Prefer the generated infobox infographic image. Fall back to raw KV list.
+        const infoboxSection = sections.find((s) => s.kind === "infobox");
+        const infoboxImg =
+          infoboxSection?.infographics?.find((i) => i.status === "done") ?? null;
+        const infoboxPending =
+          infoboxSection?.infographics?.find((i) => i.status === "pending") ?? null;
         const infobox = data.page?.infobox;
-        const infoboxHtml = infobox && infobox.length
-          ? `<div class="infobox-side">
+        let infoboxHtml;
+        if (infoboxImg && infoboxImg.image_url) {
+          infoboxHtml = `<a class="infobox-side infobox-image" data-img="${escape(infoboxImg.image_url)}">
+                           <img src="${escape(infoboxImg.image_url)}" alt="${escape(fallbackTitle + " key facts")}" />
+                         </a>`;
+        } else if (infoboxPending) {
+          infoboxHtml = `<div class="infobox-side"><h3>Key facts</h3><div class="infobox-empty"><span class="spinner"></span>Generating key-facts infographic…</div></div>`;
+        } else if (infobox && infobox.length) {
+          infoboxHtml = `<div class="infobox-side">
                <h3>${escape(fallbackTitle)}</h3>
                <dl>${infobox
                  .slice(0, 20)
@@ -869,8 +907,10 @@
                      `<dt>${escape(p.key)}</dt><dd>${escape(p.value)}</dd>`,
                  )
                  .join("")}</dl>
-             </div>`
-          : `<div class="infobox-side"><h3>Key facts</h3><div class="infobox-empty">No infobox extracted for this page${data.page ? "." : " yet."}</div></div>`;
+             </div>`;
+        } else {
+          infoboxHtml = `<div class="infobox-side"><h3>Key facts</h3><div class="infobox-empty">No infobox extracted for this page${data.page ? "." : " yet."}</div></div>`;
+        }
 
         const sectionHtml = sections
           .filter((s) => s.kind !== "infobox")
@@ -894,8 +934,9 @@
             } else {
               body = `<div class="section-pending">No infographic yet.</div>`;
             }
+            const isOpen = openSections.has(s.id) ? " open" : "";
             return `
-              <details class="section${headerCls}" open>
+              <details class="section${headerCls}"${isOpen} data-section-id="${escape(s.id)}">
                 <summary>
                   <h2>${escape(s.title || "Section")}</h2>
                   <i class="ph ph-caret-down caret"></i>

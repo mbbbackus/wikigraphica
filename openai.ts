@@ -8,7 +8,10 @@ export const IMAGE_MODEL = process.env.IMAGE_MODEL ?? "gpt-image-2";
 export const IMAGE_SIZE = process.env.IMAGE_SIZE ?? "1024x1024";
 export const IMAGE_QUALITY = process.env.IMAGE_QUALITY ?? "low";
 
-export async function generateImage(prompt: string): Promise<Buffer> {
+export async function generateImage(
+  prompt: string,
+  opts?: { size?: string; quality?: string },
+): Promise<Buffer> {
   const res = await fetch("https://api.openai.com/v1/images/generations", {
     method: "POST",
     headers: {
@@ -18,8 +21,8 @@ export async function generateImage(prompt: string): Promise<Buffer> {
     body: JSON.stringify({
       model: IMAGE_MODEL,
       prompt,
-      size: IMAGE_SIZE,
-      quality: IMAGE_QUALITY,
+      size: opts?.size ?? IMAGE_SIZE,
+      quality: opts?.quality ?? IMAGE_QUALITY,
       n: 1,
     }),
   });
