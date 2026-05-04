@@ -192,7 +192,7 @@ export const queries = {
     `select * from (
        select *, row_number() over (partition by wiki_url order by created_at desc) as rn
        from infographics
-       where status = 'done'
+       where status = 'done' and (kind is null or kind = 'overview')
      )
      where rn = 1
      order by created_at desc
