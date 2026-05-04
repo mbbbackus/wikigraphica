@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Wikigraphica</title>
+    <style>
+      :root {
+        --bg: #faf9f6;
+        --fg: #1a1a1a;
+        --muted: #6b6b6b;
+        --accent: #2b6cb0;
+        --border: #e2e2e2;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        min-height: 100vh;
+      }
+      main {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 48px 24px 96px;
+      }
+      h1 {
+        font-size: 32px;
+        margin: 0 0 8px;
+        letter-spacing: -0.02em;
+      }
+      .tagline {
+        margin: 0 0 32px;
+        color: var(--muted);
+      }
+      form {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 24px;
+      }
+      input[type="url"] {
+        flex: 1;
+        padding: 12px 14px;
+        font-size: 15px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: white;
+        font-family: inherit;
+      }
+      input[type="url"]:focus {
+        outline: 2px solid var(--accent);
+        outline-offset: -1px;
+        border-color: transparent;
+      }
+      button {
+        padding: 12px 18px;
+        font-size: 15px;
+        font-weight: 500;
+        background: var(--accent);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-family: inherit;
+      }
+      button:disabled {
+        background: #a0aec0;
+        cursor: not-allowed;
+      }
+      .status {
+        font-size: 14px;
+        color: var(--muted);
+        min-height: 20px;
+      }
+      .status.error { color: #c53030; }
+      .result {
+        margin-top: 32px;
+      }
+      .result h2 {
+        font-size: 20px;
+        margin: 0 0 4px;
+      }
+      .result .desc {
+        margin: 0 0 16px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .result img {
+        width: 100%;
+        height: auto;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: white;
+      }
+      .spinner {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        border: 2px solid #cbd5e0;
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        margin-right: 8px;
+        vertical-align: -2px;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Wikigraphica</h1>
+      <p class="tagline">Paste a Wikipedia URL — get an infographic.</p>
+      <form id="form">
+        <input
+          id="url"
+          type="url"
+          required
+          placeholder="https://en.wikipedia.org/wiki/Albert_Einstein"
+          autocomplete="off"
+          autofocus
+        />
+        <button id="submit" type="submit">Generate</button>
+      </form>
+      <div id="status" class="status"></div>
+      <div id="result" class="result" hidden>
+        <h2 id="title"></h2>
+        <p id="desc" class="desc"></p>
+        <img id="image" alt="" />
+      </div>
+    </main>
+    <script>
+      const form = document.getElementById("form");
+      const urlInput = document.getElementById("url");
+      const submitBtn = document.getElementById("submit");
+      const statusEl = document.getElementById("status");
+      const resultEl = document.getElementById("result");
+      const titleEl = document.getElementById("title");
+      const descEl = document.getElementById("desc");
+      const imgEl = document.getElementById("image");
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const url = urlInput.value.trim();
+        if (!url) return;
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Generating…";
+        statusEl.className = "status";
+        statusEl.innerHTML =
+          '<span class="spinner"></span>Fetching summary and generating infographic (this may take 30–60s)…';
+        resultEl.hidden = true;
+
+        try {
+          const res = await fetch("/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+          titleEl.textContent = data.title;
+          descEl.textContent = data.description || "";
+          descEl.hidden = !data.description;
+          imgEl.src = "data:image/png;base64," + data.imageBase64;
+          imgEl.alt = "Infographic for " + data.title;
+          resultEl.hidden = false;
+          statusEl.textContent = "";
+        } catch (err) {
+          statusEl.className = "status error";
+          statusEl.textContent = "Error: " + (err.message || err);
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Generate";
+        }
+      });
+    </script>
+  </body>
+</html>
