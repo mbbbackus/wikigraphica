@@ -292,8 +292,9 @@
       #tab-graph .graph-frame {
         position: relative;
         width: 100%;
-        height: 70vh;
-        min-height: 480px;
+        height: calc(100vh - 220px);
+        min-height: 520px;
+        max-height: 880px;
         background: white;
         border: var(--bw) solid var(--border);
         border-radius: 12px;
@@ -1345,8 +1346,6 @@
 
       let graphSimulation = null;
       let graphHidden = new Set(); // hidden parent keys
-      let graphCursorsTimer = null;
-      let graphRotationRaf = null;
       async function loadGraph() {
         const svgEl = $("graph-svg");
         const tooltipEl = $("graph-tooltip");
@@ -1416,7 +1415,6 @@
         });
 
         if (graphSimulation) graphSimulation.stop();
-        if (graphCursorsTimer) clearTimeout(graphCursorsTimer);
 
         const svg = d3.select(svgEl);
         svg.selectAll("*").remove();
@@ -1506,14 +1504,10 @@
           .attr("stroke-width", 2.5)
           .style("cursor", "pointer");
 
-        // Tracks which nodes currently get the icon-wrapper treatment.
-        const cursorIds = new Set();
+        // Only the hovered node ever gets the expanded rectangle.
         let hoveredId = null;
-
         function activeIds() {
-          const s = new Set(cursorIds);
-          if (hoveredId) s.add(hoveredId);
-          return s;
+          return hoveredId ? new Set([hoveredId]) : new Set();
         }
         function nodeIsVisible(n) {
           return !graphHidden.has(n.parentCat);
@@ -1667,6 +1661,15 @@
             d3.forceY((d) => centers[d.category ?? "_"]?.y ?? cy).strength(0.07),
           )
           .on("tick", () => {
+            // Clamp node positions inside the SVG so the whole graph stays visible.
+            const padding = 8;
+            for (const n of nodes) {
+              const r = n.r + padding;
+              if (n.x < r) n.x = r;
+              else if (n.x > w - r) n.x = w - r;
+              if (n.y < r) n.y = r;
+              else if (n.y > h - r) n.y = h - r;
+            }
             link
               .attr("x1", (d) => d.source.x)
               .attr("y1", (d) => d.source.y)
@@ -1708,54 +1711,6 @@
         svgEl.addEventListener("mousemove", svgEl._wgMouseMove);
         svgEl.addEventListener("mouseleave", svgEl._wgMouseLeave);
 
-        // Five staggered cursors: each picks a random visible node, lifetime 5s,
-        // staggered by 1s so a different cursor swaps every second.
-        const NUM_CURSORS = 5;
-        const CURSOR_LIFE = 5000;
-        const STAGGER = 1000;
-        const slots = [];
-        const startNow = Date.now();
-        for (let i = 0; i < NUM_CURSORS; i++) {
-          slots.push({ id: null, expires: startNow + i * STAGGER });
-        }
-        function pickRandomVisible() {
-          const pool = nodes.filter((n) => nodeIsVisible(n));
-          if (!pool.length) return null;
-          return pool[Math.floor(Math.random() * pool.length)];
-        }
-        function tickCursors() {
-          const now = Date.now();
-          let dirty = false;
-          for (const slot of slots) {
-            if (slot.expires <= now) {
-              const oldId = slot.id;
-              let pick = pickRandomVisible();
-              for (let tries = 0; pick && tries < 10; tries++) {
-                if (
-                  pick.id !== oldId &&
-                  !slots.some((s) => s !== slot && s.id === pick.id)
-                )
-                  break;
-                pick = pickRandomVisible();
-              }
-              slot.id = pick?.id ?? null;
-              slot.expires = now + CURSOR_LIFE;
-              dirty = true;
-            }
-          }
-          if (dirty) {
-            cursorIds.clear();
-            for (const s of slots) if (s.id) cursorIds.add(s.id);
-            renderIconOverlays();
-            bumpRadii();
-          }
-          const nextIn = Math.max(
-            100,
-            Math.min(...slots.map((s) => s.expires - now)),
-          );
-          graphCursorsTimer = setTimeout(tickCursors, nextIn);
-        }
-        tickCursors();
 
         // Stats + legend grouped by PARENT category
         const parentCounts = {};
@@ -1763,7 +1718,7 @@
           const p = n.parentCat || "uncategorized";
           parentCounts[p] = (parentCounts[p] ?? 0) + 1;
         }
-        statsEl.textContent = `${nodes.length} infographics · ${links.length} connections · ${Object.keys(parentCounts).length} categories. Hover for details · drag nodes · scroll to zoom.`;
+        statsEl.textContent = `${nodes.length} infographics · ${links.length} connections · ${Object.keys(parentCounts).length} categories. Hover any node to preview · drag to reposition.`;
         legendEl.innerHTML = Object.entries(parentCounts)
           .sort((a, b) => b[1] - a[1])
           .map(([cat, n]) => {
@@ -1784,11 +1739,13 @@
           else graphHidden.add(cat);
           item.classList.toggle("disabled");
           applyVisibility();
-          // Drop cursors that were on now-hidden nodes
-          for (const slot of slots) {
-            if (!slot.id) continue;
-            const n = nodes.find((nn) => nn.id === slot.id);
-            if (!n || !nodeIsVisible(n)) slot.expires = 0;
+          if (hoveredId) {
+            const hn = nodes.find((nn) => nn.id === hoveredId);
+            if (!hn || !nodeIsVisible(hn)) {
+              hoveredId = null;
+              renderIconOverlays();
+              bumpRadii();
+            }
           }
         };
       }
