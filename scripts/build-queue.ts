@@ -111,7 +111,15 @@ async function maybeAdd(entry: Entry): Promise<boolean> {
   return true;
 }
 
+// No-loop guarantees:
+//   • Every visit goes through `seen` set → never revisit a title.
+//   • Walk candidates are pre-filtered by `!seen.has(l)` → no A→B→A oscillation.
+//   • Stagnation detector breaks out if N outer iterations add zero entries
+//     (only possible if seeds and links keep landing on already-seen titles).
+const STAGNATION_LIMIT = 25;
 let firstIteration = true;
+let lastSize = queue.length;
+let stagnantIterations = 0;
 
 while (queue.length < TARGET) {
   let seed: Entry;
@@ -120,6 +128,7 @@ while (queue.length < TARGET) {
     seed = queue[queue.length - 1];
     console.log(`Resuming walk from latest entry: ${seed.title}`);
   } else {
+    // Fresh random seed; if it happens to be seen, just walk from it (no add)
     seed = await getRandomArticle();
     await maybeAdd(seed);
   }
@@ -135,6 +144,19 @@ while (queue.length < TARGET) {
     const entry: Entry = { title: next, url: urlFor(next) };
     await maybeAdd(entry);
     current = entry;
+  }
+
+  if (queue.length === lastSize) {
+    stagnantIterations++;
+    if (stagnantIterations >= STAGNATION_LIMIT) {
+      console.warn(
+        `Stagnated ${STAGNATION_LIMIT} iterations with no new entries — stopping at ${queue.length}/${TARGET}.`,
+      );
+      break;
+    }
+  } else {
+    stagnantIterations = 0;
+    lastSize = queue.length;
   }
 }
 
