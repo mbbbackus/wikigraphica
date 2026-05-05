@@ -1886,13 +1886,14 @@
         else if (e.target.closest(".z-out")) setGalleryZoom(galleryZoom * 0.8);
         else if (e.target.closest(".z-fit")) fitGalleryZoom();
       });
-      // Cmd/Ctrl + wheel inside the canvas frame
+      // Cmd/Ctrl + wheel inside the canvas frame — deltaY-scaled exponential
+      // for smooth, low-sensitivity trackpad zoom.
       const galleryFrame = galleryEl.closest(".canvas-frame");
       if (galleryFrame) {
         galleryFrame.addEventListener("wheel", (e) => {
           if (!(e.ctrlKey || e.metaKey)) return;
           e.preventDefault();
-          const factor = e.deltaY < 0 ? 1.1 : 0.9;
+          const factor = Math.exp(-e.deltaY * 0.003);
           setGalleryZoom(galleryZoom * factor);
         }, { passive: false });
       }
