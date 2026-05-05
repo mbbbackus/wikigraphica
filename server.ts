@@ -105,8 +105,9 @@ async function processInBackground(
 
     // 1. Generate the overview infographic (the request the worker is polling).
     const overviewPrompt = buildPrompt(summary, style);
-    // Textbook style intentionally bumps quality; everything else uses env default.
-    const overviewQuality = categoryKey === "textbook" ? "high" : undefined;
+    // Manual high-quality styles bump to quality=high; everything else uses env default.
+    const HIGH_QUALITY_STYLES = new Set(["textbook", "epic"]);
+    const overviewQuality = HIGH_QUALITY_STYLES.has(categoryKey ?? "") ? "high" : undefined;
     console.log(
       `gen ${infographicId} OVERVIEW category=${categoryKey ?? "default"} title="${summary.title}"${overviewQuality ? ` quality=${overviewQuality}` : ""}`,
     );

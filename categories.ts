@@ -168,6 +168,16 @@ const PARENTS: Category[] = [
     color: "#1e40af",
     manualOnly: true,
   },
+  {
+    key: "epic",
+    label: "Epic Renaissance",
+    hint: "(Manual selection only — not auto-classified.)",
+    style:
+      "Epic Renaissance history-painting treatment of the subject. Dramatic full-bleed oil-painting composition in the manner of David, Géricault, or Delacroix: chiaroscuro lighting, heroic figures arranged in dynamic diagonal composition, rich saturated palette of crimson #8B1A1A, ochre #B8923A, deep umber #3F2A1B, and cobalt #1F3A8A against a smoky atmospheric background. Classical architectural framing — marble columns, banners, decorative cartouches — around the edges. A formal display title in Trajan-inspired all-caps Roman serif at the top, dates rendered in Roman numerals. Two or three illuminated key-fact callouts in framed parchment scrolls placed asymmetrically. Gold-leaf accents and museum-grade oil-painting craftsmanship. Gallery feel. No cartoonish illustration, no flat vector shapes, no modern logos, no neon, no anime.",
+    icon: "shield",
+    color: "#991b1b",
+    manualOnly: true,
+  },
 ];
 
 const SUBTYPES: Category[] = [
