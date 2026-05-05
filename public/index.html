@@ -305,19 +305,30 @@
       @keyframes spin { to { transform: rotate(360deg); } }
       .empty { color: var(--muted); font-size: 14px; padding: 24px 0; }
 
-      /* === Masonry tile grid (Gallery + Clusters) === */
-      #tab-gallery .grid, #tab-clusters .grid {
+      /* === Canvas-style tile grid (Gallery) === */
+      #tab-gallery .canvas-frame {
+        overflow: auto;
+        max-height: calc(100vh - 180px);
+        min-height: 540px;
+        border: var(--bw) solid #000;
+        background: var(--card);
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+      }
+      #tab-gallery .canvas-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-        grid-auto-rows: 140px;
+        grid-template-columns: repeat(24, 80px);
+        grid-auto-rows: 80px;
         grid-auto-flow: dense;
-        gap: 10px;
+        gap: 6px;
+        padding: 10px;
+        width: max-content;
       }
       .tile {
         position: relative;
-        border: var(--bw) solid #000;
-        box-shadow: var(--shadow-sm);
-        border-radius: 8px;
+        border: 3px solid #000;
+        box-shadow: 3px 3px 0 #000;
+        border-radius: 6px;
         overflow: hidden;
         cursor: pointer;
         background: var(--card);
@@ -325,10 +336,18 @@
       }
       .tile:hover {
         transform: translate(-2px, -2px);
-        box-shadow: var(--shadow);
+        box-shadow: 5px 5px 0 #000;
       }
-      .tile.size-md { grid-column: span 2; grid-row: span 2; }
-      .tile.size-lg { grid-column: span 3; grid-row: span 3; }
+      .tile.size-tier-1  { grid-column: span 1; grid-row: span 1; }
+      .tile.size-tier-2  { grid-column: span 2; grid-row: span 1; }
+      .tile.size-tier-3  { grid-column: span 1; grid-row: span 2; }
+      .tile.size-tier-4  { grid-column: span 2; grid-row: span 2; }
+      .tile.size-tier-5  { grid-column: span 3; grid-row: span 2; }
+      .tile.size-tier-6  { grid-column: span 2; grid-row: span 3; }
+      .tile.size-tier-7  { grid-column: span 3; grid-row: span 3; }
+      .tile.size-tier-8  { grid-column: span 4; grid-row: span 3; }
+      .tile.size-tier-9  { grid-column: span 3; grid-row: span 4; }
+      .tile.size-tier-10 { grid-column: span 4; grid-row: span 4; }
       .tile img {
         width: 100%;
         height: 100%;
@@ -370,38 +389,18 @@
         opacity: 0.82;
         font-variant-numeric: tabular-nums;
       }
-      .tile.size-sm .tile-meta {
-        padding: 6px 6px;
-        font-size: 10px;
+      .tile.size-tier-1 .tile-meta,
+      .tile.size-tier-2 .tile-meta,
+      .tile.size-tier-3 .tile-meta {
+        padding: 4px 5px;
+        font-size: 9px;
       }
-      .tile.size-sm .tile-meta .t,
-      .tile.size-sm .tile-meta .views { display: none; }
-      .gallery-controls {
-        display: inline-flex;
-        gap: 0;
-        margin-bottom: 14px;
-        border: var(--bw) solid #000;
-        border-radius: 8px;
-        overflow: hidden;
-        background: white;
-      }
-      .gallery-controls button {
-        background: transparent;
-        color: var(--fg);
-        border: none;
-        border-radius: 0;
-        box-shadow: none;
-        padding: 8px 14px;
-        font-size: 13px;
-        font-weight: 600;
-      }
-      .gallery-controls button.active {
-        background: #000;
-        color: white;
-      }
-      .gallery-controls button + button {
-        border-left: var(--bw) solid #000;
-      }
+      .tile.size-tier-1 .tile-meta .t,
+      .tile.size-tier-1 .tile-meta .views,
+      .tile.size-tier-2 .tile-meta .t,
+      .tile.size-tier-2 .tile-meta .views,
+      .tile.size-tier-3 .tile-meta .t,
+      .tile.size-tier-3 .tile-meta .views { display: none; }
 
       /* Graph tab */
       #tab-graph .graph-frame {
@@ -861,7 +860,6 @@
       <div class="brand">Wikigraphica</div>
       <div class="tabs">
         <button class="tab" data-tab="gallery">Gallery</button>
-        <button class="tab" data-tab="clusters">Clusters</button>
         <button class="tab" data-tab="queue">My stuff <span class="badge" id="queue-badge" hidden>0</span></button>
         <button class="tab" data-tab="results">Results</button>
       </div>
@@ -903,13 +901,10 @@
       <div id="status" class="status"></div>
 
       <section id="tab-gallery" hidden>
-        <div class="gallery-controls">
-          <button data-order="random" class="active">Random</button>
-          <button data-order="cluster">Cluster by category</button>
+        <div class="canvas-frame">
+          <div id="gallery" class="canvas-grid"></div>
         </div>
-        <div id="gallery" class="grid"></div>
       </section>
-      <section id="tab-clusters" hidden><div id="clusters" class="grid"></div></section>
       <section id="tab-queue" hidden><div id="queue" class="grid"></div></section>
       <section id="tab-results" hidden>
         <div id="results-structured" class="results-structured" hidden></div>
@@ -934,7 +929,6 @@
 
       const tabs = {
         gallery: $("tab-gallery"),
-        clusters: $("tab-clusters"),
         queue: $("tab-queue"),
         results: $("tab-results"),
       };
@@ -1039,7 +1033,6 @@
           qInput.placeholder = DEFAULT_PLACEHOLDER;
         }
         if (name === "gallery") loadGallery();
-        if (name === "clusters") loadClusters();
         if (name === "queue") loadQueue();
         saveTab(name);
         updateUrl(name, currentResultsUrl);
@@ -1535,15 +1528,29 @@
         `;
       }
 
-      // Masonry tile rendering for Gallery + Clusters.
-      function tileSize(viewCount) {
+      // 10-tier size variance for the gallery canvas. View count sets the
+      // floor; a stable hash of the URL adds variance within tier band.
+      function hash32(s) {
+        let h = 2166136261;
+        for (let i = 0; i < s.length; i++) {
+          h ^= s.charCodeAt(i);
+          h = Math.imul(h, 16777619) >>> 0;
+        }
+        return h;
+      }
+      function tileTier(viewCount, url) {
         const v = Number(viewCount) || 0;
-        if (v >= 3) return "size-lg";
-        if (v >= 1) return "size-md";
-        return "size-sm";
+        const h = hash32(url || "");
+        if (v >= 12) return 10;
+        if (v >= 8)  return 9 + (h & 1);
+        if (v >= 5)  return 7 + (h % 3);
+        if (v >= 3)  return 5 + (h % 3);
+        if (v >= 1)  return 3 + (h % 3);
+        return 1 + (h % 4);
       }
       function tileHtml(row) {
-        const size = tileSize(row.view_count);
+        const tier = tileTier(row.view_count, row.wiki_url);
+        const size = `size-tier-${tier}`;
         const cat = row.category;
         const meta = CATEGORY_META[cat];
         const color = meta?.color || UNCATEGORIZED_COLOR;
@@ -1559,14 +1566,6 @@
           </div>
         </div>`;
       }
-      function shuffleArray(arr) {
-        const a = [...arr];
-        for (let i = a.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [a[i], a[j]] = [a[j], a[i]];
-        }
-        return a;
-      }
       function clusterByParent(rows) {
         return [...rows].sort((a, b) => {
           const pa = parentOf(a.category) || "zz_uncategorized";
@@ -1576,19 +1575,7 @@
         });
       }
 
-      const GALLERY_ORDER_KEY = "wg.galleryOrder";
-      function getGalleryOrder() {
-        return localStorage.getItem(GALLERY_ORDER_KEY) || "random";
-      }
-      function setGalleryOrder(o) {
-        localStorage.setItem(GALLERY_ORDER_KEY, o);
-        document.querySelectorAll(".gallery-controls button").forEach((b) => {
-          b.classList.toggle("active", b.dataset.order === o);
-        });
-      }
-
       async function loadGallery() {
-        setGalleryOrder(getGalleryOrder());
         try {
           const r = await fetch("/gallery");
           const d = await r.json();
@@ -1596,47 +1583,20 @@
             galleryEl.innerHTML = '<div class="empty">No infographics yet. Paste a Wikipedia URL above to make the first one.</div>';
             return;
           }
-          const order = getGalleryOrder();
-          const rows = order === "cluster" ? clusterByParent(d.results) : shuffleArray(d.results);
+          // Always one big cluster, sorted by parent category so same-color tiles tessellate together.
+          const rows = clusterByParent(d.results);
           galleryEl.innerHTML = rows.map(tileHtml).join("");
         } catch (err) {
           galleryEl.innerHTML = `<div class="empty">Error: ${escape(err.message)}</div>`;
         }
       }
 
-      const clustersEl = $("clusters");
-      async function loadClusters() {
-        try {
-          const r = await fetch("/gallery");
-          const d = await r.json();
-          if (!d.results.length) {
-            clustersEl.innerHTML = '<div class="empty">No infographics yet.</div>';
-            return;
-          }
-          clustersEl.innerHTML = clusterByParent(d.results).map(tileHtml).join("");
-        } catch (err) {
-          clustersEl.innerHTML = `<div class="empty">Error: ${escape(err.message)}</div>`;
-        }
-      }
-
       // Tile click → results
-      function bindTileClicks(container) {
-        container.addEventListener("click", (e) => {
-          const tile = e.target.closest(".tile");
-          if (!tile) return;
-          const url = tile.dataset.url;
-          if (url) viewByUrl(url);
-        });
-      }
-      bindTileClicks(galleryEl);
-      bindTileClicks(clustersEl);
-
-      // Gallery order toggle
-      document.querySelector(".gallery-controls").addEventListener("click", (e) => {
-        const btn = e.target.closest("button[data-order]");
-        if (!btn) return;
-        setGalleryOrder(btn.dataset.order);
-        loadGallery();
+      galleryEl.addEventListener("click", (e) => {
+        const tile = e.target.closest(".tile");
+        if (!tile) return;
+        const url = tile.dataset.url;
+        if (url) viewByUrl(url);
       });
 
       async function loadQueue() {
