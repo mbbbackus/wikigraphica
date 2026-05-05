@@ -341,11 +341,21 @@
       }
       #tab-gallery .canvas-grid {
         display: grid;
-        grid-template-columns: repeat(24, 80px);
-        grid-auto-rows: 80px;
-        gap: 14px;
-        padding: 18px;
+        grid-template-columns: repeat(32, 60px);
+        grid-auto-rows: 60px;
+        gap: 0;
+        padding: 0;
         width: max-content;
+      }
+      #tab-gallery .canvas-grid .tile {
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
+      #tab-gallery .canvas-grid .tile:hover {
+        transform: none;
+        box-shadow: inset 0 0 0 4px var(--c, #000);
+        z-index: 2;
       }
       .tile {
         position: relative;
@@ -1577,63 +1587,135 @@
         6: [2, 3], 7: [3, 3], 8: [4, 3], 9: [3, 4], 10: [4, 4],
       };
 
-      // Greedy bin-packing per parent category. Each category is laid down as a
-      // contiguous "neighborhood" — bigger tiles first into top-left of its band,
-      // smaller tiles fill gaps within the same band before the next category
-      // starts at the row immediately below the deepest tile of the prior one.
-      // Result: one tessellated mosaic where same-type tiles are spatially adjacent.
-      function packGallery(rows, cols = 24) {
+      // Free-form Voronoi-like packing. Each category is anchored at a hash-seeded
+      // 2D point; tiles greedily snap to the nearest free cell to that anchor.
+      // Larger categories run first so they own their seed neighborhood; smaller
+      // categories fit around them. The result is a continent of irregular blobs.
+      // Border sides between different-category neighbors get drawn 4px black to
+      // delineate the regions; everything else is borderless so same-category tiles
+      // tessellate into a single mass.
+      function packGallery(rows, cols = 32) {
         const groups = new Map();
         for (const row of rows) {
           const p = parentOf(row.category) || "uncategorized";
           if (!groups.has(p)) groups.set(p, []);
           groups.get(p).push(row);
         }
-        const occ = [];
-        const isFree = (r, c, h, w) => {
-          if (c + w > cols) return false;
-          for (let dr = 0; dr < h; dr++) {
-            const occr = occ[r + dr];
-            if (!occr) continue;
-            for (let dc = 0; dc < w; dc++) {
-              if (occr[c + dc]) return false;
-            }
-          }
-          return true;
-        };
-        const fill = (r, c, h, w) => {
-          for (let dr = 0; dr < h; dr++) {
-            if (!occ[r + dr]) occ[r + dr] = [];
-            for (let dc = 0; dc < w; dc++) occ[r + dr][c + dc] = true;
-          }
-        };
-        const placed = [];
-        let bandStart = 0;
-        for (const [, tiles] of groups) {
+        const catList = [];
+        let totalArea = 0;
+        for (const [cat, tiles] of groups) {
           const sized = tiles.map((row) => {
             const tier = tileTier(row.view_count, row.wiki_url);
             const [w, h] = TIER_DIMS[tier];
             return { row, tier, w, h, area: w * h };
           });
-          // Largest first → big anchors land at top-left of band; smaller tiles
-          // backfill gaps strictly within the same band before the next category.
           sized.sort((a, b) => b.area - a.area);
-          let bandBottom = bandStart;
-          for (const t of sized) {
-            let done = false;
-            for (let r = bandStart; r < bandStart + 400 && !done; r++) {
-              for (let c = 0; c < cols; c++) {
-                if (isFree(r, c, t.h, t.w)) {
-                  fill(r, c, t.h, t.w);
-                  placed.push({ ...t, gr: r + 1, gc: c + 1 });
-                  bandBottom = Math.max(bandBottom, r + t.h);
-                  done = true;
-                  break;
-                }
+          const ttl = sized.reduce((s, t) => s + t.area, 0);
+          catList.push({ cat, tiles: sized, totalArea: ttl });
+          totalArea += ttl;
+        }
+        // Pack big categories first — they grab their seed area before smaller ones arrive.
+        catList.sort((a, b) => b.totalArea - a.totalArea);
+        const estimatedRows = Math.max(20, Math.ceil((totalArea * 1.18) / cols));
+
+        // Hash-based seed positions, jittered so categories scatter across the canvas.
+        const seeds = new Map();
+        for (let i = 0; i < catList.length; i++) {
+          const ca = catList[i];
+          const h1 = hash32("seedx:" + ca.cat);
+          const h2 = hash32("seedy:" + ca.cat);
+          seeds.set(ca.cat, {
+            x: (h1 % cols),
+            y: (h2 % Math.max(8, estimatedRows - 4)),
+          });
+        }
+
+        const occ = [];
+        const isFree = (r, c, h, w) => {
+          if (r < 0 || c < 0 || c + w > cols) return false;
+          for (let dr = 0; dr < h; dr++) {
+            const row = occ[r + dr];
+            if (!row) continue;
+            for (let dc = 0; dc < w; dc++) if (row[c + dc]) return false;
+          }
+          return true;
+        };
+        const fill = (r, c, h, w, cat) => {
+          for (let dr = 0; dr < h; dr++) {
+            if (!occ[r + dr]) occ[r + dr] = [];
+            for (let dc = 0; dc < w; dc++) occ[r + dr][c + dc] = cat;
+          }
+        };
+        const findNearest = (seed, h, w) => {
+          // Sweep all candidate (r,c) in a wide band around the seed and pick the
+          // free spot with the smallest Euclidean distance to the seed.
+          const radius = Math.max(60, estimatedRows);
+          let best = null;
+          let bestDist = Infinity;
+          const minR = Math.max(0, seed.y - radius);
+          const maxR = seed.y + radius;
+          for (let r = minR; r <= maxR; r++) {
+            for (let c = 0; c < cols; c++) {
+              if (!isFree(r, c, h, w)) continue;
+              const dx = c + (w - 1) / 2 - seed.x;
+              const dy = r + (h - 1) / 2 - seed.y;
+              const d = dx * dx + dy * dy;
+              if (d < bestDist) {
+                bestDist = d;
+                best = { r, c };
               }
             }
           }
-          bandStart = bandBottom;
+          return best;
+        };
+
+        const placed = [];
+        for (const { cat, tiles } of catList) {
+          const seed = seeds.get(cat);
+          for (const t of tiles) {
+            const spot = findNearest(seed, t.h, t.w);
+            if (!spot) continue;
+            fill(spot.r, spot.c, t.h, t.w, cat);
+            placed.push({ ...t, gr: spot.r + 1, gc: spot.c + 1 });
+          }
+        }
+
+        // Compute per-side category borders. Build a cell→cat map, then for each
+        // tile mark a side as "edge" if any cell on that side faces a different
+        // category (or canvas edge / empty cell).
+        const cellMap = [];
+        for (const p of placed) {
+          const myCat = parentOf(p.row.category) || "uncategorized";
+          for (let dr = 0; dr < p.h; dr++) {
+            const r = p.gr - 1 + dr;
+            if (!cellMap[r]) cellMap[r] = [];
+            for (let dc = 0; dc < p.w; dc++) {
+              cellMap[r][p.gc - 1 + dc] = myCat;
+            }
+          }
+        }
+        for (const p of placed) {
+          const myCat = parentOf(p.row.category) || "uncategorized";
+          const r0 = p.gr - 1;
+          const c0 = p.gc - 1;
+          const sides = { top: false, right: false, bottom: false, left: false };
+          for (let dc = 0; dc < p.w; dc++) {
+            const above = r0 - 1 < 0 ? null : cellMap[r0 - 1]?.[c0 + dc] ?? null;
+            if (above !== myCat) { sides.top = true; break; }
+          }
+          for (let dc = 0; dc < p.w; dc++) {
+            const below = cellMap[r0 + p.h]?.[c0 + dc] ?? null;
+            if (below !== myCat) { sides.bottom = true; break; }
+          }
+          for (let dr = 0; dr < p.h; dr++) {
+            const leftN = c0 - 1 < 0 ? null : cellMap[r0 + dr]?.[c0 - 1] ?? null;
+            if (leftN !== myCat) { sides.left = true; break; }
+          }
+          for (let dr = 0; dr < p.h; dr++) {
+            const rightN = cellMap[r0 + dr]?.[c0 + p.w] ?? null;
+            if (rightN !== myCat) { sides.right = true; break; }
+          }
+          p.borders = sides;
         }
         return placed;
       }
@@ -1647,7 +1729,15 @@
         const icon = meta?.icon || "circle";
         const title = row.wiki_title || row.wiki_url;
         const views = row.view_count > 0 ? row.view_count + "×" : "";
-        const style = `--c:${color};grid-column:${p.gc}/span ${p.w};grid-row:${p.gr}/span ${p.h};`;
+        const b = p.borders || { top: 0, right: 0, bottom: 0, left: 0 };
+        const bw = (s) => (s ? "4px" : "0");
+        const style =
+          `--c:${color};` +
+          `grid-column:${p.gc}/span ${p.w};grid-row:${p.gr}/span ${p.h};` +
+          `border-top:${bw(b.top)} solid #000;` +
+          `border-right:${bw(b.right)} solid #000;` +
+          `border-bottom:${bw(b.bottom)} solid #000;` +
+          `border-left:${bw(b.left)} solid #000;`;
         return `<div class="tile size-tier-${tier}" data-url="${escape(row.wiki_url)}" style="${style}">
           ${row.image_url ? `<img src="${escape(row.image_url)}" alt="${escape(title)}" loading="lazy" />` : ""}
           <div class="tile-meta">
