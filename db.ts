@@ -64,6 +64,12 @@ if (!colNames.has("kind")) db.exec("alter table infographics add column kind tex
 if (!colNames.has("batch_id")) db.exec("alter table infographics add column batch_id text");
 db.exec("create index if not exists infographics_batch_idx on infographics(batch_id)");
 
+const wpCols = db.query<{ name: string }, []>("pragma table_info(wiki_pages)").all();
+const wpColNames = new Set(wpCols.map((c) => c.name));
+if (!wpColNames.has("view_count")) {
+  db.exec("alter table wiki_pages add column view_count integer not null default 0");
+}
+
 export type Infographic = {
   id: string;
   wiki_url: string;
@@ -109,7 +115,10 @@ export type WikiSection = {
   created_at: number;
 };
 
-export type InfographicView = Infographic & { image_url: string | null };
+export type InfographicView = Infographic & {
+  image_url: string | null;
+  view_count?: number;
+};
 
 export function viewInfographic(row: Infographic): InfographicView {
   return {
@@ -188,15 +197,21 @@ export const queries = {
   getById: db.prepare<Infographic, [string]>(
     "select * from infographics where id = ?",
   ),
-  galleryDone: db.prepare<Infographic, [number]>(
-    `select * from (
+  galleryDone: db.prepare<Infographic & { view_count?: number }, [number]>(
+    `select i.*, ifnull(p.view_count, 0) as view_count from (
        select *, row_number() over (partition by wiki_url order by created_at desc) as rn
        from infographics
        where status = 'done' and (kind is null or kind = 'overview')
-     )
-     where rn = 1
-     order by created_at desc
+     ) i
+     left join wiki_pages p on p.wiki_url = i.wiki_url
+     where i.rn = 1
+     order by i.created_at desc
      limit ?`,
+  ),
+  incrementView: db.prepare<unknown, [string]>(
+    `insert into wiki_pages (id, wiki_url, wiki_title, wiki_lang, view_count, created_at)
+     values (?, ?, '', 'en', 1, ?)
+     on conflict(id) do update set view_count = view_count + 1`,
   ),
   byUrl: db.prepare<Infographic, [string, number]>(
     "select * from infographics where wiki_url = ? order by created_at desc limit ?",

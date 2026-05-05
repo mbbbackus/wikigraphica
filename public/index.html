@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Wikigraphica</title>
     <script src="https://unpkg.com/@phosphor-icons/web@2.1.1" defer></script>
-    <script src="https://d3js.org/d3.v7.min.js" defer></script>
     <style>
       :root {
         --bg: #fbf5dc;
@@ -305,6 +304,104 @@
       }
       @keyframes spin { to { transform: rotate(360deg); } }
       .empty { color: var(--muted); font-size: 14px; padding: 24px 0; }
+
+      /* === Masonry tile grid (Gallery + Clusters) === */
+      #tab-gallery .grid, #tab-clusters .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        grid-auto-rows: 140px;
+        grid-auto-flow: dense;
+        gap: 10px;
+      }
+      .tile {
+        position: relative;
+        border: var(--bw) solid #000;
+        box-shadow: var(--shadow-sm);
+        border-radius: 8px;
+        overflow: hidden;
+        cursor: pointer;
+        background: var(--card);
+        transition: transform 0.12s ease, box-shadow 0.12s ease;
+      }
+      .tile:hover {
+        transform: translate(-2px, -2px);
+        box-shadow: var(--shadow);
+      }
+      .tile.size-md { grid-column: span 2; grid-row: span 2; }
+      .tile.size-lg { grid-column: span 3; grid-row: span 3; }
+      .tile img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .tile .tile-meta {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 8px 10px 8px;
+        background: linear-gradient(to top, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.55) 60%, transparent 100%);
+        color: white;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        line-height: 1.25;
+      }
+      .tile .tile-meta i.ph {
+        font-size: 14px;
+        color: var(--c, #fff);
+        background: white;
+        border-radius: 4px;
+        padding: 2px;
+        flex: 0 0 auto;
+      }
+      .tile .tile-meta .t {
+        flex: 1 1 auto;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-weight: 600;
+      }
+      .tile .tile-meta .views {
+        flex: 0 0 auto;
+        font-size: 10px;
+        opacity: 0.82;
+        font-variant-numeric: tabular-nums;
+      }
+      .tile.size-sm .tile-meta {
+        padding: 6px 6px;
+        font-size: 10px;
+      }
+      .tile.size-sm .tile-meta .t,
+      .tile.size-sm .tile-meta .views { display: none; }
+      .gallery-controls {
+        display: inline-flex;
+        gap: 0;
+        margin-bottom: 14px;
+        border: var(--bw) solid #000;
+        border-radius: 8px;
+        overflow: hidden;
+        background: white;
+      }
+      .gallery-controls button {
+        background: transparent;
+        color: var(--fg);
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        padding: 8px 14px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .gallery-controls button.active {
+        background: #000;
+        color: white;
+      }
+      .gallery-controls button + button {
+        border-left: var(--bw) solid #000;
+      }
 
       /* Graph tab */
       #tab-graph .graph-frame {
@@ -763,8 +860,8 @@
     <div class="topbar">
       <div class="brand">Wikigraphica</div>
       <div class="tabs">
-        <button class="tab" data-tab="graph">Graph</button>
         <button class="tab" data-tab="gallery">Gallery</button>
+        <button class="tab" data-tab="clusters">Clusters</button>
         <button class="tab" data-tab="queue">My stuff <span class="badge" id="queue-badge" hidden>0</span></button>
         <button class="tab" data-tab="results">Results</button>
       </div>
@@ -804,15 +901,14 @@
     <main>
       <div id="status" class="status"></div>
 
-      <section id="tab-graph">
-        <div class="graph-frame">
-          <svg id="graph-svg"></svg>
-          <div class="graph-tooltip" id="graph-tooltip"></div>
+      <section id="tab-gallery" hidden>
+        <div class="gallery-controls">
+          <button data-order="random" class="active">Random</button>
+          <button data-order="cluster">Cluster by category</button>
         </div>
-        <div class="graph-stats" id="graph-stats"></div>
-        <div class="legend" id="graph-legend"></div>
+        <div id="gallery" class="grid"></div>
       </section>
-      <section id="tab-gallery" hidden><div id="gallery" class="grid"></div></section>
+      <section id="tab-clusters" hidden><div id="clusters" class="grid"></div></section>
       <section id="tab-queue" hidden><div id="queue" class="grid"></div></section>
       <section id="tab-results" hidden>
         <div id="results-structured" class="results-structured" hidden></div>
@@ -836,8 +932,8 @@
       const queueBadge = $("queue-badge");
 
       const tabs = {
-        graph: $("tab-graph"),
         gallery: $("tab-gallery"),
+        clusters: $("tab-clusters"),
         queue: $("tab-queue"),
         results: $("tab-results"),
       };
@@ -941,8 +1037,8 @@
           if (qInput.value === currentResultsUrl) qInput.value = "";
           qInput.placeholder = DEFAULT_PLACEHOLDER;
         }
-        if (name === "graph") loadGraph();
         if (name === "gallery") loadGallery();
+        if (name === "clusters") loadClusters();
         if (name === "queue") loadQueue();
         saveTab(name);
         updateUrl(name, currentResultsUrl);
@@ -1186,6 +1282,12 @@
       }
 
       async function viewByUrl(wikiUrl) {
+        // Track the visit (fire-and-forget).
+        fetch("/view", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: wikiUrl }),
+        }).catch(() => {});
         try {
           const r = await fetch(
             "/page-structure?url=" + encodeURIComponent(wikiUrl),
@@ -1432,7 +1534,60 @@
         `;
       }
 
+      // Masonry tile rendering for Gallery + Clusters.
+      function tileSize(viewCount) {
+        const v = Number(viewCount) || 0;
+        if (v >= 3) return "size-lg";
+        if (v >= 1) return "size-md";
+        return "size-sm";
+      }
+      function tileHtml(row) {
+        const size = tileSize(row.view_count);
+        const cat = row.category;
+        const meta = CATEGORY_META[cat];
+        const color = meta?.color || UNCATEGORIZED_COLOR;
+        const icon = meta?.icon || "circle";
+        const title = row.wiki_title || row.wiki_url;
+        const views = row.view_count > 0 ? row.view_count + "×" : "";
+        return `<div class="tile ${size}" data-url="${escape(row.wiki_url)}" style="--c:${color}">
+          ${row.image_url ? `<img src="${escape(row.image_url)}" alt="${escape(title)}" loading="lazy" />` : ""}
+          <div class="tile-meta">
+            <i class="ph ph-${icon}"></i>
+            <span class="t">${escape(title)}</span>
+            <span class="views">${escape(views)}</span>
+          </div>
+        </div>`;
+      }
+      function shuffleArray(arr) {
+        const a = [...arr];
+        for (let i = a.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+      }
+      function clusterByParent(rows) {
+        return [...rows].sort((a, b) => {
+          const pa = parentOf(a.category) || "zz_uncategorized";
+          const pb = parentOf(b.category) || "zz_uncategorized";
+          if (pa !== pb) return pa.localeCompare(pb);
+          return (b.view_count || 0) - (a.view_count || 0);
+        });
+      }
+
+      const GALLERY_ORDER_KEY = "wg.galleryOrder";
+      function getGalleryOrder() {
+        return localStorage.getItem(GALLERY_ORDER_KEY) || "random";
+      }
+      function setGalleryOrder(o) {
+        localStorage.setItem(GALLERY_ORDER_KEY, o);
+        document.querySelectorAll(".gallery-controls button").forEach((b) => {
+          b.classList.toggle("active", b.dataset.order === o);
+        });
+      }
+
       async function loadGallery() {
+        setGalleryOrder(getGalleryOrder());
         try {
           const r = await fetch("/gallery");
           const d = await r.json();
@@ -1440,11 +1595,48 @@
             galleryEl.innerHTML = '<div class="empty">No infographics yet. Paste a Wikipedia URL above to make the first one.</div>';
             return;
           }
-          galleryEl.innerHTML = d.results.map((row) => cardHtml(row)).join("");
+          const order = getGalleryOrder();
+          const rows = order === "cluster" ? clusterByParent(d.results) : shuffleArray(d.results);
+          galleryEl.innerHTML = rows.map(tileHtml).join("");
         } catch (err) {
           galleryEl.innerHTML = `<div class="empty">Error: ${escape(err.message)}</div>`;
         }
       }
+
+      const clustersEl = $("clusters");
+      async function loadClusters() {
+        try {
+          const r = await fetch("/gallery");
+          const d = await r.json();
+          if (!d.results.length) {
+            clustersEl.innerHTML = '<div class="empty">No infographics yet.</div>';
+            return;
+          }
+          clustersEl.innerHTML = clusterByParent(d.results).map(tileHtml).join("");
+        } catch (err) {
+          clustersEl.innerHTML = `<div class="empty">Error: ${escape(err.message)}</div>`;
+        }
+      }
+
+      // Tile click → results
+      function bindTileClicks(container) {
+        container.addEventListener("click", (e) => {
+          const tile = e.target.closest(".tile");
+          if (!tile) return;
+          const url = tile.dataset.url;
+          if (url) viewByUrl(url);
+        });
+      }
+      bindTileClicks(galleryEl);
+      bindTileClicks(clustersEl);
+
+      // Gallery order toggle
+      document.querySelector(".gallery-controls").addEventListener("click", (e) => {
+        const btn = e.target.closest("button[data-order]");
+        if (!btn) return;
+        setGalleryOrder(btn.dataset.order);
+        loadGallery();
+      });
 
       async function loadQueue() {
         const ids = loadMyIds();
@@ -1936,6 +2128,7 @@
           showTab(saved);
           return;
         }
+        // 'graph' is gone — fall through to default
         showTab("gallery");
       }
       window.addEventListener("popstate", () => init());

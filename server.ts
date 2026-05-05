@@ -435,9 +435,23 @@ const server = Bun.serve({
 
     if (req.method === "GET" && path === "/gallery") {
       try {
-        const rows = queries.galleryDone.all(120);
-        const results: InfographicView[] = rows.map(viewInfographic);
+        const rows = queries.galleryDone.all(500);
+        const results: InfographicView[] = rows.map((r) => ({
+          ...viewInfographic(r),
+          view_count: (r as any).view_count ?? 0,
+        }));
         return Response.json({ results });
+      } catch (err) {
+        return jsonError(err);
+      }
+    }
+
+    if (req.method === "POST" && path === "/view") {
+      try {
+        const body = (await req.json()) as { url: string };
+        const { canonical } = parseWikipediaUrl(body.url);
+        queries.incrementView.run(canonical, canonical, Date.now());
+        return Response.json({ ok: true });
       } catch (err) {
         return jsonError(err);
       }
