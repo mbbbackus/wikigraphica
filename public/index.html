@@ -1677,7 +1677,7 @@
       // Border sides between different-category neighbors get drawn 4px black to
       // delineate the regions; everything else is borderless so same-category tiles
       // tessellate into a single mass.
-      function packGallery(rows, cols = 32) {
+      function packGallery(rows, targetAspect = 1.6) {
         const groups = new Map();
         for (const row of rows) {
           const p = parentOf(row.category) || "uncategorized";
@@ -1698,19 +1698,26 @@
         }
         // Pack big categories first — they grab their seed area before smaller ones arrive.
         catList.sort((a, b) => b.totalArea - a.totalArea);
-        const estimatedRows = Math.max(20, Math.ceil((totalArea * 1.18) / cols));
 
-        // Hash-based seed positions, jittered so categories scatter across the canvas.
+        // Compute canvas dims to match the requested aspect ratio.
+        const slack = 1.18;
+        const cols = Math.max(12, Math.ceil(Math.sqrt(totalArea * targetAspect * slack)));
+        const estimatedRows = Math.max(8, Math.ceil((totalArea * slack) / cols));
+
+        // Spread seeds in a 2D grid covering the full canvas (small hash jitter).
+        const seedCols = Math.max(2, Math.ceil(Math.sqrt(catList.length * targetAspect)));
+        const seedRows = Math.max(1, Math.ceil(catList.length / seedCols));
         const seeds = new Map();
-        for (let i = 0; i < catList.length; i++) {
-          const ca = catList[i];
-          const h1 = hash32("seedx:" + ca.cat);
-          const h2 = hash32("seedy:" + ca.cat);
+        catList.forEach((ca, i) => {
+          const sr = Math.floor(i / seedCols);
+          const sc = i % seedCols;
+          const jx = (hash32(ca.cat + ":x") % 6) - 3;
+          const jy = (hash32(ca.cat + ":y") % 6) - 3;
           seeds.set(ca.cat, {
-            x: (h1 % cols),
-            y: (h2 % Math.max(8, estimatedRows - 4)),
+            x: Math.max(0, Math.min(cols - 1, Math.round(((sc + 0.5) / seedCols) * cols) + jx)),
+            y: Math.max(0, Math.min(estimatedRows - 1, Math.round(((sr + 0.5) / seedRows) * estimatedRows) + jy)),
           });
-        }
+        });
 
         const occ = [];
         const isFree = (r, c, h, w) => {
@@ -1799,7 +1806,7 @@
           }
           p.borders = sides;
         }
-        return placed;
+        return { placed, cols };
       }
 
       function tileHtml(p) {
@@ -1840,9 +1847,15 @@
             galleryEl.innerHTML = '<div class="empty">No infographics yet. Paste a Wikipedia URL above to make the first one.</div>';
             return;
           }
-          const placed = packGallery(d.results, 32);
+          // Continent aspect tracks the viewport so fit-to-view fills the screen.
+          // Wide on desktop, narrower on mobile.
+          const frame = galleryEl.closest(".canvas-frame");
+          const fw = frame?.clientWidth ?? window.innerWidth;
+          const fh = frame?.clientHeight ?? window.innerHeight;
+          const targetAspect = Math.max(0.45, Math.min(2.5, fw / Math.max(1, fh)));
+          const { placed, cols } = packGallery(d.results, targetAspect);
+          galleryEl.style.gridTemplateColumns = `repeat(${cols}, 60px)`;
           galleryEl.innerHTML = placed.map(tileHtml).join("");
-          // Default to fit-to-view so the whole continent is visible at once.
           requestAnimationFrame(() => fitGalleryZoom());
         } catch (err) {
           galleryEl.innerHTML = `<div class="empty">Error: ${escape(err.message)}</div>`;
