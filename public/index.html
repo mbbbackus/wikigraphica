@@ -189,6 +189,21 @@
       }
       .card-actions .regen-btn:disabled { opacity: 0.6; cursor: progress; }
       .card-actions .regen-wrap { padding-bottom: 6px; }
+      .card-actions .delete-btn {
+        font-size: 12px;
+        padding: 5px 10px;
+        background: #fff;
+        color: #000;
+        border: 3px solid #000;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 700;
+        line-height: 1;
+      }
+      .card-actions .delete-btn:hover {
+        background: var(--error);
+        color: #fff;
+      }
       .card-actions .regen-menu {
         position: absolute;
         top: 100%;
@@ -1028,6 +1043,10 @@
           saveMyIds(ids);
         }
       }
+      function removeMyId(id) {
+        const ids = loadMyIds().filter((x) => x !== id);
+        saveMyIds(ids);
+      }
 
       function setStatus(text, isError = false) {
         statusEl.className = "status" + (isError ? " error" : "");
@@ -1403,6 +1422,22 @@
 
       function attachGridHandlers(containerEl, opts = {}) {
         containerEl.addEventListener("click", (e) => {
+          const deleteBtn = e.target.closest(".delete-btn");
+          if (deleteBtn) {
+            e.stopPropagation();
+            e.preventDefault();
+            const card = deleteBtn.closest(".card");
+            if (!card) return;
+            const id = card.dataset.id;
+            if (id) {
+              removeMyId(id);
+              card.remove();
+              updateQueueBadge(
+                document.querySelectorAll('.card[data-id] .pending-overlay').length,
+              );
+            }
+            return;
+          }
           const regenItem = e.target.closest(".regen-item");
           if (regenItem) {
             e.stopPropagation();
@@ -1503,6 +1538,7 @@
         const date = fmtDate(row.created_at);
         const wikiHref = escape(row.wiki_url);
         const titleText = escape(row.wiki_title || row.wiki_url);
+        const deletable = !!opts.deletable;
 
         let imgArea;
         if (row.status === "pending") {
@@ -1516,8 +1552,12 @@
         }
 
         const catBadge = categoryBadge(row.category);
+        const deleteBtn = deletable
+          ? `<button type="button" class="delete-btn" title="Remove from My stuff">✕</button>`
+          : "";
         const actions = `
           <div class="card-actions">
+            ${deleteBtn}
             <div class="regen-wrap" tabindex="0">
               <button type="button" class="regen-btn" title="Regenerate">↻ Regenerate ▾</button>
               <div class="regen-menu">
@@ -1797,7 +1837,7 @@
             managePolling(false);
             return;
           }
-          queueEl.innerHTML = d.results.map((row) => cardHtml(row)).join("");
+          queueEl.innerHTML = d.results.map((row) => cardHtml(row, { deletable: true })).join("");
           const pending = d.results.filter((r) => r.status === "pending").length;
           updateQueueBadge(pending);
           managePolling(pending > 0);
