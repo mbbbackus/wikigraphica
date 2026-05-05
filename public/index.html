@@ -347,16 +347,6 @@
         padding: 12px;
         width: max-content;
       }
-      #tab-gallery .canvas-grid .tile {
-        border: 0;
-        border-radius: 0;
-        box-shadow: none;
-      }
-      #tab-gallery .canvas-grid .tile:hover {
-        transform: none;
-        box-shadow: inset 0 0 0 4px var(--c, #000);
-        z-index: 2;
-      }
       .tile {
         position: relative;
         border: 3px solid #000;
@@ -364,7 +354,7 @@
         border-radius: 6px;
         overflow: hidden;
         cursor: pointer;
-        background: var(--card);
+        background: color-mix(in srgb, var(--c, #888) 10%, var(--card));
         transition: transform 0.12s ease, box-shadow 0.12s ease;
       }
       .tile:hover {
@@ -384,7 +374,7 @@
       .tile img {
         width: 100%;
         height: 100%;
-        object-fit: cover;
+        object-fit: contain;
         display: block;
       }
       .tile .tile-meta {
@@ -1582,9 +1572,19 @@
         if (v >= 1)  return 3 + (h % 3);
         return 1 + (h % 4);
       }
+      // All vertical rectangles so each tile contains the full infographic.
+      // [w, h] in canvas cells.
       const TIER_DIMS = {
-        1: [1, 1], 2: [2, 1], 3: [1, 2], 4: [2, 2], 5: [3, 2],
-        6: [2, 3], 7: [3, 3], 8: [4, 3], 9: [3, 4], 10: [4, 4],
+        1:  [2, 3],
+        2:  [2, 3],
+        3:  [2, 4],
+        4:  [3, 4],
+        5:  [3, 4],
+        6:  [3, 5],
+        7:  [4, 5],
+        8:  [4, 6],
+        9:  [4, 7],
+        10: [5, 7],
       };
 
       // Free-form Voronoi-like packing. Each category is anchored at a hash-seeded
@@ -1729,15 +1729,9 @@
         const icon = meta?.icon || "circle";
         const title = row.wiki_title || row.wiki_url;
         const views = row.view_count > 0 ? row.view_count + "×" : "";
-        const b = p.borders || { top: 0, right: 0, bottom: 0, left: 0 };
-        const bw = (s) => (s ? "4px" : "0");
         const style =
           `--c:${color};` +
-          `grid-column:${p.gc}/span ${p.w};grid-row:${p.gr}/span ${p.h};` +
-          `border-top:${bw(b.top)} solid #000;` +
-          `border-right:${bw(b.right)} solid #000;` +
-          `border-bottom:${bw(b.bottom)} solid #000;` +
-          `border-left:${bw(b.left)} solid #000;`;
+          `grid-column:${p.gc}/span ${p.w};grid-row:${p.gr}/span ${p.h};`;
         return `<div class="tile size-tier-${tier}" data-url="${escape(row.wiki_url)}" style="${style}">
           ${row.image_url ? `<img src="${escape(row.image_url)}" alt="${escape(title)}" loading="lazy" />` : ""}
           <div class="tile-meta">
