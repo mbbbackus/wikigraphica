@@ -340,60 +340,12 @@
         box-shadow: var(--shadow);
       }
       #tab-gallery .canvas-grid {
-        display: block;
-        width: max-content;
-        min-width: 100%;
-      }
-      .cat-block {
-        border-bottom: var(--bw) solid #000;
-      }
-      .cat-block:last-child { border-bottom: none; }
-      .cat-block .cat-label {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 10px 18px;
-        font-size: 13px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        background: color-mix(in srgb, var(--c) 18%, var(--bg));
-        color: var(--c);
-        border-bottom: var(--bw) solid #000;
-        position: sticky;
-        left: 0;
-        max-width: 100vw;
-        box-sizing: border-box;
-      }
-      .cat-block .cat-label i.ph { font-size: 16px; }
-      .cat-block .cat-count {
-        margin-left: auto;
-        background: var(--c);
-        color: white;
-        padding: 2px 9px;
-        border-radius: 999px;
-        font-size: 11px;
-        font-variant-numeric: tabular-nums;
-        border: 2px solid #000;
-      }
-      .cat-block .cat-grid {
         display: grid;
         grid-template-columns: repeat(24, 80px);
         grid-auto-rows: 80px;
-        grid-auto-flow: dense;
-        gap: 0;
-        padding: 0;
+        gap: 14px;
+        padding: 18px;
         width: max-content;
-      }
-      .cat-block .cat-grid .tile {
-        border-radius: 0;
-        border: 1.5px solid #000;
-        box-shadow: none;
-      }
-      .cat-block .cat-grid .tile:hover {
-        transform: none;
-        box-shadow: 0 0 0 3px var(--c, #000);
-        z-index: 2;
       }
       .tile {
         position: relative;
@@ -1620,16 +1572,83 @@
         if (v >= 1)  return 3 + (h % 3);
         return 1 + (h % 4);
       }
-      function tileHtml(row) {
-        const tier = tileTier(row.view_count, row.wiki_url);
-        const size = `size-tier-${tier}`;
+      const TIER_DIMS = {
+        1: [1, 1], 2: [2, 1], 3: [1, 2], 4: [2, 2], 5: [3, 2],
+        6: [2, 3], 7: [3, 3], 8: [4, 3], 9: [3, 4], 10: [4, 4],
+      };
+
+      // Greedy bin-packing per parent category. Each category is laid down as a
+      // contiguous "neighborhood" — bigger tiles first into top-left of its band,
+      // smaller tiles fill gaps within the same band before the next category
+      // starts at the row immediately below the deepest tile of the prior one.
+      // Result: one tessellated mosaic where same-type tiles are spatially adjacent.
+      function packGallery(rows, cols = 24) {
+        const groups = new Map();
+        for (const row of rows) {
+          const p = parentOf(row.category) || "uncategorized";
+          if (!groups.has(p)) groups.set(p, []);
+          groups.get(p).push(row);
+        }
+        const occ = [];
+        const isFree = (r, c, h, w) => {
+          if (c + w > cols) return false;
+          for (let dr = 0; dr < h; dr++) {
+            const occr = occ[r + dr];
+            if (!occr) continue;
+            for (let dc = 0; dc < w; dc++) {
+              if (occr[c + dc]) return false;
+            }
+          }
+          return true;
+        };
+        const fill = (r, c, h, w) => {
+          for (let dr = 0; dr < h; dr++) {
+            if (!occ[r + dr]) occ[r + dr] = [];
+            for (let dc = 0; dc < w; dc++) occ[r + dr][c + dc] = true;
+          }
+        };
+        const placed = [];
+        let bandStart = 0;
+        for (const [, tiles] of groups) {
+          const sized = tiles.map((row) => {
+            const tier = tileTier(row.view_count, row.wiki_url);
+            const [w, h] = TIER_DIMS[tier];
+            return { row, tier, w, h, area: w * h };
+          });
+          // Largest first → big anchors land at top-left of band; smaller tiles
+          // backfill gaps strictly within the same band before the next category.
+          sized.sort((a, b) => b.area - a.area);
+          let bandBottom = bandStart;
+          for (const t of sized) {
+            let done = false;
+            for (let r = bandStart; r < bandStart + 400 && !done; r++) {
+              for (let c = 0; c < cols; c++) {
+                if (isFree(r, c, t.h, t.w)) {
+                  fill(r, c, t.h, t.w);
+                  placed.push({ ...t, gr: r + 1, gc: c + 1 });
+                  bandBottom = Math.max(bandBottom, r + t.h);
+                  done = true;
+                  break;
+                }
+              }
+            }
+          }
+          bandStart = bandBottom;
+        }
+        return placed;
+      }
+
+      function tileHtml(p) {
+        const row = p.row;
+        const tier = p.tier;
         const cat = row.category;
         const meta = CATEGORY_META[cat];
         const color = meta?.color || UNCATEGORIZED_COLOR;
         const icon = meta?.icon || "circle";
         const title = row.wiki_title || row.wiki_url;
         const views = row.view_count > 0 ? row.view_count + "×" : "";
-        return `<div class="tile ${size}" data-url="${escape(row.wiki_url)}" style="--c:${color}">
+        const style = `--c:${color};grid-column:${p.gc}/span ${p.w};grid-row:${p.gr}/span ${p.h};`;
+        return `<div class="tile size-tier-${tier}" data-url="${escape(row.wiki_url)}" style="${style}">
           ${row.image_url ? `<img src="${escape(row.image_url)}" alt="${escape(title)}" loading="lazy" />` : ""}
           <div class="tile-meta">
             <i class="ph ph-${icon}"></i>
@@ -1655,28 +1674,8 @@
             galleryEl.innerHTML = '<div class="empty">No infographics yet. Paste a Wikipedia URL above to make the first one.</div>';
             return;
           }
-          // Group rows by parent category so each block is its own touching mass of tiles.
-          const sorted = clusterByParent(d.results);
-          const groups = new Map();
-          for (const row of sorted) {
-            const p = parentOf(row.category) || "uncategorized";
-            if (!groups.has(p)) groups.set(p, []);
-            groups.get(p).push(row);
-          }
-          galleryEl.innerHTML = Array.from(groups.entries())
-            .map(([key, rows]) => {
-              const meta = CATEGORY_META[key];
-              const color = meta?.color || UNCATEGORIZED_COLOR;
-              const icon = meta?.icon || "circle";
-              const label =
-                meta?.label || (key === "uncategorized" ? "Uncategorized" : key);
-              const inner = rows.map(tileHtml).join("");
-              return `<div class="cat-block" style="--c:${color}">
-                <div class="cat-label"><i class="ph ph-${icon}"></i>${escape(label)}<span class="cat-count">${rows.length}</span></div>
-                <div class="cat-grid">${inner}</div>
-              </div>`;
-            })
-            .join("");
+          const placed = packGallery(d.results, 24);
+          galleryEl.innerHTML = placed.map(tileHtml).join("");
         } catch (err) {
           galleryEl.innerHTML = `<div class="empty">Error: ${escape(err.message)}</div>`;
         }
