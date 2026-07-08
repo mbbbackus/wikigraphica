@@ -7,6 +7,8 @@ import {
   viewInfographic,
   type InfographicView,
 } from "./db";
+import { searchInfographics } from "./search";
+import { parseTags, serializeTags } from "./tags";
 import {
   buildPrompt,
   buildSectionPrompt,
@@ -296,6 +298,31 @@ const server = Bun.serve({
         processInBackground(id, canonical, body.category ?? null);
         const row = queries.getById.get(id);
         return Response.json({ infographic: row ? viewInfographic(row) : null });
+      } catch (err) {
+        return jsonError(err);
+      }
+    }
+
+    if (req.method === "GET" && path === "/search") {
+      try {
+        const q = url.searchParams.get("q") ?? "";
+        const hits = searchInfographics(q);
+        const items = hits
+          .map((h) => queries.getById.get(h.id))
+          .filter((row) => row != null)
+          .map((row) => viewInfographic(row!));
+        return Response.json({ query: q, items });
+      } catch (err) {
+        return jsonError(err);
+      }
+    }
+
+    if (req.method === "POST" && path === "/tags") {
+      try {
+        const body = (await req.json()) as { id: string; tags: string };
+        const tags = parseTags(body.tags ?? "");
+        queries.updateInfographicTags.run(serializeTags(tags), body.id);
+        return Response.json({ id: body.id, tags });
       } catch (err) {
         return jsonError(err);
       }
