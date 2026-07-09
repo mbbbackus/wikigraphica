@@ -1,3 +1,5 @@
+import { slugToTitle, titleToSlug } from "./text";
+
 export type WikiSummary = {
   title: string;
   description?: string;
@@ -26,13 +28,13 @@ export function parseWikipediaUrl(input: string): {
   const m = url.pathname.match(/^\/wiki\/(.+)$/);
   if (!m) throw new Error("URL must point to a /wiki/ article.");
   const slug = m[1].split("#")[0].split("?")[0];
-  const title = decodeURIComponent(slug).replace(/_/g, " ");
+  const title = slugToTitle(slug);
   const canonical = `https://${lang}.wikipedia.org/wiki/${slug}`;
   return { lang, title, canonical };
 }
 
 export async function fetchWikiSummary(lang: string, title: string): Promise<WikiSummary> {
-  const encoded = encodeURIComponent(title.replace(/ /g, "_"));
+  const encoded = titleToSlug(title);
   const res = await fetch(
     `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encoded}`,
     { headers: { "User-Agent": "wikigraphica/0.1 (local dev)" } },

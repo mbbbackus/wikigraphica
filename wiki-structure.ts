@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import { collapseWhitespace, titleToSlug } from "./text";
 
 export type InfoboxPair = { key: string; value: string };
 export type PageSection = { title: string; level: number; text: string };
@@ -27,7 +28,7 @@ export async function fetchPageStructure(
   lang: string,
   title: string,
 ): Promise<PageStructure> {
-  const slug = encodeURIComponent(title.replace(/ /g, "_"));
+  const slug = titleToSlug(title);
   const url = `https://${lang}.wikipedia.org/api/rest_v1/page/html/${slug}`;
   const res = await fetch(url, {
     headers: { "User-Agent": "wikigraphica/0.1 (structure)" },
@@ -45,8 +46,8 @@ export async function fetchPageStructure(
       const $th = $(tr).find("th").first();
       const $td = $(tr).find("td").first();
       if (!$th.length || !$td.length) return;
-      const key = $th.text().trim().replace(/\s+/g, " ");
-      const value = $td.text().trim().replace(/\s+/g, " ").slice(0, 240);
+      const key = collapseWhitespace($th.text());
+      const value = collapseWhitespace($td.text()).slice(0, 240);
       if (!key || !value || key.length > 80) return;
       pairs.push({ key, value });
     });
@@ -71,7 +72,7 @@ export async function fetchPageStructure(
       const tn = (next[0] as any).tagName?.toLowerCase?.() ?? "";
       if (tn === "h1" || tn === "h2" || tn === "h3") break;
       const t = next.text().trim();
-      if (t) parts.push(t.replace(/\s+/g, " "));
+      if (t) parts.push(collapseWhitespace(t));
       next = next.next();
     }
     const text = parts.join("\n").slice(0, MAX_SECTION_TEXT_LEN);
