@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Wikigraphica</title>
     <script src="https://unpkg.com/@phosphor-icons/web@2.1.1" defer></script>
-    <script src="https://d3js.org/d3.v7.min.js" defer></script>
     <style>
       :root {
         --bg: #fbf5dc;
@@ -77,9 +76,8 @@
         font-family: inherit;
       }
       input:focus {
-        outline: 2px solid var(--accent);
-        outline-offset: -1px;
-        border-color: transparent;
+        outline: none;
+        border-color: var(--accent);
       }
       button {
         padding: 12px 18px;
@@ -191,6 +189,28 @@
       }
       .card-actions .regen-btn:disabled { opacity: 0.6; cursor: progress; }
       .card-actions .regen-wrap { padding-bottom: 6px; }
+      .card .delete-corner {
+        position: absolute;
+        bottom: 8px;
+        right: 8px;
+        z-index: 3;
+        font-size: 12px;
+        padding: 5px 10px;
+        background: #fff;
+        color: #000;
+        border: 3px solid #000;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 700;
+        line-height: 1;
+        opacity: 0;
+        transition: opacity 0.15s ease;
+      }
+      .card:hover .delete-corner { opacity: 1; }
+      .card .delete-corner:hover {
+        background: var(--error);
+        color: #fff;
+      }
       .card-actions .regen-menu {
         position: absolute;
         top: 100%;
@@ -306,6 +326,151 @@
       }
       @keyframes spin { to { transform: rotate(360deg); } }
       .empty { color: var(--muted); font-size: 14px; padding: 24px 0; }
+
+      /* === Canvas-style tile grid (Gallery) === */
+      body.flush-gallery {
+        overflow: hidden;
+        height: 100vh;
+      }
+      body.flush-gallery main {
+        max-width: none;
+        padding: 0;
+        height: calc(100vh - 70px);
+        overflow: hidden;
+      }
+      body.flush-gallery #status { display: none; }
+      body.flush-gallery #tab-gallery { height: 100%; }
+      body.flush-gallery #tab-gallery .canvas-frame {
+        height: 100%;
+        max-height: 100%;
+        min-height: 0;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+      }
+      #tab-gallery .canvas-frame {
+        overflow: auto;
+        max-height: calc(100vh - 180px);
+        min-height: 540px;
+        border: var(--bw) solid #000;
+        background-color: var(--bg);
+        background-image:
+          linear-gradient(to right, rgba(80, 60, 0, 0.05) 1px, transparent 1px),
+          linear-gradient(to bottom, rgba(80, 60, 0, 0.05) 1px, transparent 1px);
+        background-size: 32px 32px, 32px 32px;
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+      }
+      #tab-gallery .canvas-grid {
+        display: grid;
+        grid-template-columns: repeat(32, 60px);
+        grid-auto-rows: 60px;
+        gap: 8px;
+        padding: 12px;
+        width: max-content;
+        transform-origin: 0 0;
+      }
+      #tab-gallery .zoom-controls {
+        position: fixed;
+        bottom: 18px;
+        right: 18px;
+        z-index: 50;
+        display: flex;
+        gap: 4px;
+      }
+      #tab-gallery .zoom-controls button {
+        width: 38px;
+        height: 38px;
+        font-size: 18px;
+        font-weight: 700;
+        background: #fff;
+        color: #000;
+        border: 3px solid #000;
+        border-radius: 6px;
+        box-shadow: 3px 3px 0 #000;
+        padding: 0;
+        line-height: 1;
+        cursor: pointer;
+      }
+      #tab-gallery .zoom-controls button:hover { background: #000; color: #fff; }
+      body:not(.flush-gallery) #tab-gallery .zoom-controls { display: none; }
+      .tile {
+        position: relative;
+        border: 3px solid #000;
+        box-shadow: 3px 3px 0 #000;
+        border-radius: 6px;
+        overflow: hidden;
+        cursor: pointer;
+        background: color-mix(in srgb, var(--c, #888) 10%, var(--card));
+        transition: transform 0.12s ease, box-shadow 0.12s ease;
+      }
+      .tile:hover {
+        transform: translate(-2px, -2px);
+        box-shadow: 5px 5px 0 #000;
+      }
+      .tile.size-tier-1  { grid-column: span 1; grid-row: span 1; }
+      .tile.size-tier-2  { grid-column: span 2; grid-row: span 1; }
+      .tile.size-tier-3  { grid-column: span 1; grid-row: span 2; }
+      .tile.size-tier-4  { grid-column: span 2; grid-row: span 2; }
+      .tile.size-tier-5  { grid-column: span 3; grid-row: span 2; }
+      .tile.size-tier-6  { grid-column: span 2; grid-row: span 3; }
+      .tile.size-tier-7  { grid-column: span 3; grid-row: span 3; }
+      .tile.size-tier-8  { grid-column: span 4; grid-row: span 3; }
+      .tile.size-tier-9  { grid-column: span 3; grid-row: span 4; }
+      .tile.size-tier-10 { grid-column: span 4; grid-row: span 4; }
+      .tile img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .tile .tile-meta {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 8px 10px 8px;
+        background: linear-gradient(to top, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.55) 60%, transparent 100%);
+        color: white;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        line-height: 1.25;
+      }
+      .tile .tile-meta i.ph {
+        font-size: 14px;
+        color: var(--c, #fff);
+        background: white;
+        border-radius: 4px;
+        padding: 2px;
+        flex: 0 0 auto;
+      }
+      .tile .tile-meta .t {
+        flex: 1 1 auto;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-weight: 600;
+      }
+      .tile .tile-meta .views {
+        flex: 0 0 auto;
+        font-size: 10px;
+        opacity: 0.82;
+        font-variant-numeric: tabular-nums;
+      }
+      .tile.size-tier-1 .tile-meta,
+      .tile.size-tier-2 .tile-meta,
+      .tile.size-tier-3 .tile-meta {
+        padding: 4px 5px;
+        font-size: 9px;
+      }
+      .tile.size-tier-1 .tile-meta .t,
+      .tile.size-tier-1 .tile-meta .views,
+      .tile.size-tier-2 .tile-meta .t,
+      .tile.size-tier-2 .tile-meta .views,
+      .tile.size-tier-3 .tile-meta .t,
+      .tile.size-tier-3 .tile-meta .views { display: none; }
 
       /* Graph tab */
       #tab-graph .graph-frame {
@@ -764,7 +929,6 @@
     <div class="topbar">
       <div class="brand">Wikigraphica</div>
       <div class="tabs">
-        <button class="tab" data-tab="graph">Graph</button>
         <button class="tab" data-tab="gallery">Gallery</button>
         <button class="tab" data-tab="queue">My stuff <span class="badge" id="queue-badge" hidden>0</span></button>
         <button class="tab" data-tab="results">Results</button>
@@ -786,6 +950,8 @@
           <div class="regen-section">Pick a style</div>
           <div class="regen-item" data-cat="">Auto (classify)</div>
           <div class="regen-item" data-cat="default">Default editorial</div>
+          <div class="regen-item" data-cat="textbook">Textbook poster (high-q)</div>
+          <div class="regen-item" data-cat="epic">Epic Renaissance (high-q)</div>
           <div class="regen-divider"></div>
           <div class="regen-item" data-cat="person">Person — portrait</div>
           <div class="regen-item" data-cat="place">Place — map</div>
@@ -804,15 +970,16 @@
     <main>
       <div id="status" class="status"></div>
 
-      <section id="tab-graph">
-        <div class="graph-frame">
-          <svg id="graph-svg"></svg>
-          <div class="graph-tooltip" id="graph-tooltip"></div>
+      <section id="tab-gallery" hidden>
+        <div class="canvas-frame">
+          <div id="gallery" class="canvas-grid"></div>
         </div>
-        <div class="graph-stats" id="graph-stats"></div>
-        <div class="legend" id="graph-legend"></div>
+        <div class="zoom-controls">
+          <button class="z-out" title="Zoom out">−</button>
+          <button class="z-fit" title="Fit to view">⊙</button>
+          <button class="z-in" title="Zoom in">+</button>
+        </div>
       </section>
-      <section id="tab-gallery" hidden><div id="gallery" class="grid"></div></section>
       <section id="tab-queue" hidden><div id="queue" class="grid"></div></section>
       <section id="tab-results" hidden>
         <div id="results-structured" class="results-structured" hidden></div>
@@ -836,7 +1003,6 @@
       const queueBadge = $("queue-badge");
 
       const tabs = {
-        graph: $("tab-graph"),
         gallery: $("tab-gallery"),
         queue: $("tab-queue"),
         results: $("tab-results"),
@@ -914,6 +1080,10 @@
           saveMyIds(ids);
         }
       }
+      function removeMyId(id) {
+        const ids = loadMyIds().filter((x) => x !== id);
+        saveMyIds(ids);
+      }
 
       function setStatus(text, isError = false) {
         statusEl.className = "status" + (isError ? " error" : "");
@@ -931,6 +1101,7 @@
         const onResults = name === "results" && !!currentResultsUrl;
         $("results-toolbar").hidden = !onResults;
         submitBtn.hidden = onResults;
+        document.body.classList.toggle("flush-gallery", name === "gallery");
         if (onResults) {
           qInput.value = currentResultsUrl;
           qInput.readOnly = true;
@@ -941,7 +1112,6 @@
           if (qInput.value === currentResultsUrl) qInput.value = "";
           qInput.placeholder = DEFAULT_PLACEHOLDER;
         }
-        if (name === "graph") loadGraph();
         if (name === "gallery") loadGallery();
         if (name === "queue") loadQueue();
         saveTab(name);
@@ -1186,6 +1356,12 @@
       }
 
       async function viewByUrl(wikiUrl) {
+        // Track the visit (fire-and-forget).
+        fetch("/view", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: wikiUrl }),
+        }).catch(() => {});
         try {
           const r = await fetch(
             "/page-structure?url=" + encodeURIComponent(wikiUrl),
@@ -1283,6 +1459,22 @@
 
       function attachGridHandlers(containerEl, opts = {}) {
         containerEl.addEventListener("click", (e) => {
+          const deleteBtn = e.target.closest(".delete-btn, .delete-corner");
+          if (deleteBtn) {
+            e.stopPropagation();
+            e.preventDefault();
+            const card = deleteBtn.closest(".card");
+            if (!card) return;
+            const id = card.dataset.id;
+            if (id) {
+              removeMyId(id);
+              card.remove();
+              updateQueueBadge(
+                document.querySelectorAll('.card[data-id] .pending-overlay').length,
+              );
+            }
+            return;
+          }
           const regenItem = e.target.closest(".regen-item");
           if (regenItem) {
             e.stopPropagation();
@@ -1383,6 +1575,7 @@
         const date = fmtDate(row.created_at);
         const wikiHref = escape(row.wiki_url);
         const titleText = escape(row.wiki_title || row.wiki_url);
+        const deletable = !!opts.deletable;
 
         let imgArea;
         if (row.status === "pending") {
@@ -1396,6 +1589,9 @@
         }
 
         const catBadge = categoryBadge(row.category);
+        const deleteBtn = deletable
+          ? `<button type="button" class="delete-corner" title="Remove from My stuff">✕</button>`
+          : "";
         const actions = `
           <div class="card-actions">
             <div class="regen-wrap" tabindex="0">
@@ -1422,6 +1618,7 @@
         return `
           <div class="card${fresh}${err}" data-id="${escape(row.id)}" data-url="${wikiHref}">
             ${actions}
+            ${deleteBtn}
             ${imgArea}
             <div class="meta">
               ${catBadge}
@@ -1432,6 +1629,216 @@
         `;
       }
 
+      // 10-tier size variance for the gallery canvas. View count sets the
+      // floor; a stable hash of the URL adds variance within tier band.
+      function hash32(s) {
+        let h = 2166136261;
+        for (let i = 0; i < s.length; i++) {
+          h ^= s.charCodeAt(i);
+          h = Math.imul(h, 16777619) >>> 0;
+        }
+        return h;
+      }
+      function tileTier(viewCount, url) {
+        const v = Number(viewCount) || 0;
+        const h = hash32(url || "");
+        if (v >= 12) return 10;
+        if (v >= 8)  return 9 + (h & 1);
+        if (v >= 5)  return 7 + (h % 3);
+        if (v >= 3)  return 5 + (h % 3);
+        if (v >= 1)  return 4 + (h % 3);
+        // 0-view pages: spread broadly across tiers 1–5 so even with no view
+        // data the gallery has visible size variance.
+        return 1 + (h % 5);
+      }
+      // Each tile's cell-shape is computed from the actual infographic aspect
+      // (so the image fills the tile with no letterboxing), scaled by tier area.
+      const TIER_AREA = {
+        1: 6,  2: 8,  3: 12, 4: 16, 5: 20,
+        6: 25, 7: 30, 8: 36, 9: 42, 10: 50,
+      };
+      function tileDimsFor(row) {
+        const tier = tileTier(row.view_count, row.wiki_url);
+        const sizeStr = row.size || "1024x1024";
+        const m = /^(\d+)x(\d+)$/.exec(sizeStr);
+        const iw = m ? Number(m[1]) : 1024;
+        const ih = m ? Number(m[2]) : 1024;
+        const aspect = iw && ih ? iw / ih : 1;
+        const area = TIER_AREA[tier] || 12;
+        let h = Math.max(2, Math.round(Math.sqrt(area / aspect)));
+        let w = Math.max(2, Math.round(h * aspect));
+        return { tier, w, h };
+      }
+
+      // Free-form Voronoi-like packing. Each category is anchored at a hash-seeded
+      // 2D point; tiles greedily snap to the nearest free cell to that anchor.
+      // Larger categories run first so they own their seed neighborhood; smaller
+      // categories fit around them. The result is a continent of irregular blobs.
+      // Border sides between different-category neighbors get drawn 4px black to
+      // delineate the regions; everything else is borderless so same-category tiles
+      // tessellate into a single mass.
+      function packGallery(rows, targetAspect = 1.6) {
+        const groups = new Map();
+        for (const row of rows) {
+          const p = parentOf(row.category) || "uncategorized";
+          if (!groups.has(p)) groups.set(p, []);
+          groups.get(p).push(row);
+        }
+        const catList = [];
+        let totalArea = 0;
+        for (const [cat, tiles] of groups) {
+          const sized = tiles.map((row) => {
+            const { tier, w, h } = tileDimsFor(row);
+            return { row, tier, w, h, area: w * h };
+          });
+          sized.sort((a, b) => b.area - a.area);
+          const ttl = sized.reduce((s, t) => s + t.area, 0);
+          catList.push({ cat, tiles: sized, totalArea: ttl });
+          totalArea += ttl;
+        }
+        // Pack big categories first — they grab their seed area before smaller ones arrive.
+        catList.sort((a, b) => b.totalArea - a.totalArea);
+
+        // Compute canvas dims to match the requested aspect ratio.
+        const slack = 1.18;
+        const cols = Math.max(12, Math.ceil(Math.sqrt(totalArea * targetAspect * slack)));
+        const estimatedRows = Math.max(8, Math.ceil((totalArea * slack) / cols));
+
+        // Spread seeds in a 2D grid covering the full canvas (small hash jitter).
+        const seedCols = Math.max(2, Math.ceil(Math.sqrt(catList.length * targetAspect)));
+        const seedRows = Math.max(1, Math.ceil(catList.length / seedCols));
+        const seeds = new Map();
+        catList.forEach((ca, i) => {
+          const sr = Math.floor(i / seedCols);
+          const sc = i % seedCols;
+          const jx = (hash32(ca.cat + ":x") % 6) - 3;
+          const jy = (hash32(ca.cat + ":y") % 6) - 3;
+          seeds.set(ca.cat, {
+            x: Math.max(0, Math.min(cols - 1, Math.round(((sc + 0.5) / seedCols) * cols) + jx)),
+            y: Math.max(0, Math.min(estimatedRows - 1, Math.round(((sr + 0.5) / seedRows) * estimatedRows) + jy)),
+          });
+        });
+
+        const occ = [];
+        const isFree = (r, c, h, w) => {
+          if (r < 0 || c < 0 || c + w > cols) return false;
+          for (let dr = 0; dr < h; dr++) {
+            const row = occ[r + dr];
+            if (!row) continue;
+            for (let dc = 0; dc < w; dc++) if (row[c + dc]) return false;
+          }
+          return true;
+        };
+        const fill = (r, c, h, w, cat) => {
+          for (let dr = 0; dr < h; dr++) {
+            if (!occ[r + dr]) occ[r + dr] = [];
+            for (let dc = 0; dc < w; dc++) occ[r + dr][c + dc] = cat;
+          }
+        };
+        const findNearest = (seed, h, w) => {
+          // Sweep all candidate (r,c) in a wide band around the seed and pick the
+          // free spot with the smallest Euclidean distance to the seed.
+          const radius = Math.max(60, estimatedRows);
+          let best = null;
+          let bestDist = Infinity;
+          const minR = Math.max(0, seed.y - radius);
+          const maxR = seed.y + radius;
+          for (let r = minR; r <= maxR; r++) {
+            for (let c = 0; c < cols; c++) {
+              if (!isFree(r, c, h, w)) continue;
+              const dx = c + (w - 1) / 2 - seed.x;
+              const dy = r + (h - 1) / 2 - seed.y;
+              const d = dx * dx + dy * dy;
+              if (d < bestDist) {
+                bestDist = d;
+                best = { r, c };
+              }
+            }
+          }
+          return best;
+        };
+
+        const placed = [];
+        for (const { cat, tiles } of catList) {
+          const seed = seeds.get(cat);
+          for (const t of tiles) {
+            const spot = findNearest(seed, t.h, t.w);
+            if (!spot) continue;
+            fill(spot.r, spot.c, t.h, t.w, cat);
+            placed.push({ ...t, gr: spot.r + 1, gc: spot.c + 1 });
+          }
+        }
+
+        // Compute per-side category borders. Build a cell→cat map, then for each
+        // tile mark a side as "edge" if any cell on that side faces a different
+        // category (or canvas edge / empty cell).
+        const cellMap = [];
+        for (const p of placed) {
+          const myCat = parentOf(p.row.category) || "uncategorized";
+          for (let dr = 0; dr < p.h; dr++) {
+            const r = p.gr - 1 + dr;
+            if (!cellMap[r]) cellMap[r] = [];
+            for (let dc = 0; dc < p.w; dc++) {
+              cellMap[r][p.gc - 1 + dc] = myCat;
+            }
+          }
+        }
+        for (const p of placed) {
+          const myCat = parentOf(p.row.category) || "uncategorized";
+          const r0 = p.gr - 1;
+          const c0 = p.gc - 1;
+          const sides = { top: false, right: false, bottom: false, left: false };
+          for (let dc = 0; dc < p.w; dc++) {
+            const above = r0 - 1 < 0 ? null : cellMap[r0 - 1]?.[c0 + dc] ?? null;
+            if (above !== myCat) { sides.top = true; break; }
+          }
+          for (let dc = 0; dc < p.w; dc++) {
+            const below = cellMap[r0 + p.h]?.[c0 + dc] ?? null;
+            if (below !== myCat) { sides.bottom = true; break; }
+          }
+          for (let dr = 0; dr < p.h; dr++) {
+            const leftN = c0 - 1 < 0 ? null : cellMap[r0 + dr]?.[c0 - 1] ?? null;
+            if (leftN !== myCat) { sides.left = true; break; }
+          }
+          for (let dr = 0; dr < p.h; dr++) {
+            const rightN = cellMap[r0 + dr]?.[c0 + p.w] ?? null;
+            if (rightN !== myCat) { sides.right = true; break; }
+          }
+          p.borders = sides;
+        }
+        return { placed, cols };
+      }
+
+      function tileHtml(p) {
+        const row = p.row;
+        const tier = p.tier;
+        const cat = row.category;
+        const meta = CATEGORY_META[cat];
+        const color = meta?.color || UNCATEGORIZED_COLOR;
+        const icon = meta?.icon || "circle";
+        const title = row.wiki_title || row.wiki_url;
+        const views = row.view_count > 0 ? row.view_count + "×" : "";
+        const style =
+          `--c:${color};` +
+          `grid-column:${p.gc}/span ${p.w};grid-row:${p.gr}/span ${p.h};`;
+        return `<div class="tile size-tier-${tier}" data-url="${escape(row.wiki_url)}" style="${style}">
+          ${row.image_url ? `<img src="${escape(row.image_url)}" alt="${escape(title)}" loading="lazy" />` : ""}
+          <div class="tile-meta">
+            <i class="ph ph-${icon}"></i>
+            <span class="t">${escape(title)}</span>
+            <span class="views">${escape(views)}</span>
+          </div>
+        </div>`;
+      }
+      function clusterByParent(rows) {
+        return [...rows].sort((a, b) => {
+          const pa = parentOf(a.category) || "zz_uncategorized";
+          const pb = parentOf(b.category) || "zz_uncategorized";
+          if (pa !== pb) return pa.localeCompare(pb);
+          return (b.view_count || 0) - (a.view_count || 0);
+        });
+      }
+
       async function loadGallery() {
         try {
           const r = await fetch("/gallery");
@@ -1440,10 +1847,68 @@
             galleryEl.innerHTML = '<div class="empty">No infographics yet. Paste a Wikipedia URL above to make the first one.</div>';
             return;
           }
-          galleryEl.innerHTML = d.results.map((row) => cardHtml(row)).join("");
+          // Continent aspect tracks the viewport so fit-to-view fills the screen.
+          // Wide on desktop, narrower on mobile.
+          const frame = galleryEl.closest(".canvas-frame");
+          const fw = frame?.clientWidth ?? window.innerWidth;
+          const fh = frame?.clientHeight ?? window.innerHeight;
+          const targetAspect = Math.max(0.45, Math.min(2.5, fw / Math.max(1, fh)));
+          const { placed, cols } = packGallery(d.results, targetAspect);
+          galleryEl.style.gridTemplateColumns = `repeat(${cols}, 60px)`;
+          galleryEl.innerHTML = placed.map(tileHtml).join("");
+          requestAnimationFrame(() => fitGalleryZoom());
         } catch (err) {
           galleryEl.innerHTML = `<div class="empty">Error: ${escape(err.message)}</div>`;
         }
+      }
+
+      // Tile click → results
+      galleryEl.addEventListener("click", (e) => {
+        const tile = e.target.closest(".tile");
+        if (!tile) return;
+        const url = tile.dataset.url;
+        if (url) viewByUrl(url);
+      });
+
+      // Gallery zoom — default fits the entire continent in the visible frame.
+      let galleryZoom = 1;
+      function setGalleryZoom(z, save = true) {
+        galleryZoom = Math.max(0.1, Math.min(3, z));
+        galleryEl.style.transform = `scale(${galleryZoom})`;
+        if (save) localStorage.setItem("wg.galleryZoom", String(galleryZoom));
+      }
+      function fitGalleryZoom() {
+        const frame = galleryEl.closest(".canvas-frame");
+        if (!frame) return;
+        // Measure at zoom=1
+        galleryEl.style.transform = "scale(1)";
+        // Force layout
+        const w = galleryEl.scrollWidth;
+        const h = galleryEl.scrollHeight;
+        const fw = frame.clientWidth;
+        const fh = frame.clientHeight;
+        if (!w || !h) return;
+        const z = Math.min(fw / w, fh / h);
+        setGalleryZoom(z, false);
+        // Resize the frame's scroll-content area to match scaled size so no overflow.
+        // Apply via inline style on canvas-grid: width/height stay logical.
+      }
+      // Buttons
+      document.querySelector("#tab-gallery .zoom-controls").addEventListener("click", (e) => {
+        if (e.target.closest(".z-in")) setGalleryZoom(galleryZoom * 1.25);
+        else if (e.target.closest(".z-out")) setGalleryZoom(galleryZoom * 0.8);
+        else if (e.target.closest(".z-fit")) fitGalleryZoom();
+      });
+      // Cmd/Ctrl + wheel inside the canvas frame — deltaY-scaled exponential
+      // for smooth, low-sensitivity trackpad zoom.
+      const galleryFrame = galleryEl.closest(".canvas-frame");
+      if (galleryFrame) {
+        galleryFrame.addEventListener("wheel", (e) => {
+          if (!(e.ctrlKey || e.metaKey)) return;
+          e.preventDefault();
+          const factor = Math.exp(-e.deltaY * 0.003);
+          setGalleryZoom(galleryZoom * factor);
+        }, { passive: false });
       }
 
       async function loadQueue() {
@@ -1468,7 +1933,7 @@
             managePolling(false);
             return;
           }
-          queueEl.innerHTML = d.results.map((row) => cardHtml(row)).join("");
+          queueEl.innerHTML = d.results.map((row) => cardHtml(row, { deletable: true })).join("");
           const pending = d.results.filter((r) => r.status === "pending").length;
           updateQueueBadge(pending);
           managePolling(pending > 0);
@@ -1936,6 +2401,7 @@
           showTab(saved);
           return;
         }
+        // 'graph' is gone — fall through to default
         showTab("gallery");
       }
       window.addEventListener("popstate", () => init());

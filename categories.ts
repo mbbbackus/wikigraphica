@@ -10,6 +10,7 @@ export type Category = {
   icon: string;
   parent?: CategoryKey;
   color?: string; // only set on top-level parents
+  manualOnly?: boolean; // hidden from the classifier; only selectable via the regen dropdown
 };
 
 const PARENTS: Category[] = [
@@ -156,6 +157,26 @@ const PARENTS: Category[] = [
       "Annual-report front page. A bold founding-year numeral in thick slab serif anchors the page; a horizontal milestone timeline strip runs across the middle; small data callouts (employees, revenue, founders) stacked below. Editorial sans for body. Palette: corporate cream #F3EDDF, deep navy #1F2F4D, single brand-spot color tuned to the company's actual brand.",
     icon: "briefcase",
     color: "#65a30d",
+  },
+  {
+    key: "textbook",
+    label: "Textbook poster",
+    hint: "(Manual selection only — not auto-classified.)",
+    style:
+      "Premium English-language poster about the subject in a Japanese-inspired modern editorial science-graphic style: off-white textured paper, deep black vertical serif typography, electric cobalt blue technical linework, acid green highlight accents, thin rule lines, boxed annotations, sparse labels, asymmetrical grid, large negative space, subtle risograph grain and halftone texture. Include a dramatic central abstract diagram explaining the topic, small side-panel mini diagrams, and refined infographic details. Make it feel like a gallery-worthy mathematical design poster: disciplined, minimal, cerebral, intense, poetic, and visually powerful. No Japanese text, no glossy 3D, no cartooniness, no clutter.",
+    icon: "book-open",
+    color: "#1e40af",
+    manualOnly: true,
+  },
+  {
+    key: "epic",
+    label: "Epic Renaissance",
+    hint: "(Manual selection only — not auto-classified.)",
+    style:
+      "Epic Renaissance history-painting treatment of the subject. Dramatic full-bleed oil-painting composition in the manner of David, Géricault, or Delacroix: chiaroscuro lighting, heroic figures arranged in dynamic diagonal composition, rich saturated palette of crimson #8B1A1A, ochre #B8923A, deep umber #3F2A1B, and cobalt #1F3A8A against a smoky atmospheric background. Classical architectural framing — marble columns, banners, decorative cartouches — around the edges. A formal display title in Trajan-inspired all-caps Roman serif at the top, dates rendered in Roman numerals. Two or three illuminated key-fact callouts in framed parchment scrolls placed asymmetrically. Gold-leaf accents and museum-grade oil-painting craftsmanship. Gallery feel. No cartoonish illustration, no flat vector shapes, no modern logos, no neon, no anime.",
+    icon: "shield",
+    color: "#991b1b",
+    manualOnly: true,
   },
 ];
 
@@ -576,9 +597,10 @@ export function getParentKey(key: string): string {
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY!;
 const CLASSIFIER_MODEL = process.env.CLASSIFIER_MODEL ?? "gpt-4o-mini";
 
+const CLASSIFIER_CATEGORIES = CATEGORIES.filter((c) => !c.manualOnly);
 const SYSTEM_PROMPT = `You classify Wikipedia articles into exactly one category from this list. Prefer the most specific sub-type that fits; fall back to the parent only when no sub-type matches.
 
-${CATEGORIES.map((c) => `- ${c.key}${c.parent ? ` (sub-type of ${c.parent})` : " (parent)"}: ${c.hint}`).join("\n")}
+${CLASSIFIER_CATEGORIES.map((c) => `- ${c.key}${c.parent ? ` (sub-type of ${c.parent})` : " (parent)"}: ${c.hint}`).join("\n")}
 
 Return strictly JSON: {"category": "<key>"} where <key> is one of the keys above, or "none" if no category fits.`;
 

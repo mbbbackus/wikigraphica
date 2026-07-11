@@ -50,11 +50,13 @@ async function generateOne(
     extract?: string;
     categoryKey: string | null;
     size?: string;
+    quality?: string;
   },
 ) {
   try {
     const size = meta.size ?? IMAGE_SIZE;
-    const buffer = await generateImage(prompt, { size });
+    const quality = meta.quality ?? IMAGE_QUALITY;
+    const buffer = await generateImage(prompt, { size, quality });
     const imagePath = `${infographicId}.png`;
     await write(join(IMAGES_DIR, imagePath), buffer);
     queries.markDone.run(
@@ -65,7 +67,7 @@ async function generateOne(
       imagePath,
       prompt,
       IMAGE_MODEL,
-      IMAGE_QUALITY,
+      quality,
       size,
       meta.categoryKey,
       Date.now(),
@@ -105,8 +107,11 @@ async function processInBackground(
 
     // 1. Generate the overview infographic (the request the worker is polling).
     const overviewPrompt = buildPrompt(summary, style);
+    // Manual high-quality styles bump to quality=high; everything else uses env default.
+    const HIGH_QUALITY_STYLES = new Set(["textbook", "epic"]);
+    const overviewQuality = HIGH_QUALITY_STYLES.has(categoryKey ?? "") ? "high" : undefined;
     console.log(
-      `gen ${infographicId} OVERVIEW category=${categoryKey ?? "default"} title="${summary.title}"`,
+      `gen ${infographicId} OVERVIEW category=${categoryKey ?? "default"} title="${summary.title}"${overviewQuality ? ` quality=${overviewQuality}` : ""}`,
     );
     await generateOne(infographicId, overviewPrompt, {
       lang,
@@ -114,19 +119,24 @@ async function processInBackground(
       description: summary.description,
       extract: summary.extract,
       categoryKey,
+      quality: overviewQuality,
     });
 
     // 2. Fan out: fetch structure, save page + sections, queue per-section gens.
-    fanOutSectionsAndInfobox({
-      wikiUrl,
-      lang,
-      summary,
-      categoryKey,
-      style,
-      batchId: infographicId,
-    }).catch((err) =>
-      console.warn(`fan-out failed for ${wikiUrl}:`, err),
-    );
+    if (process.env.OVERVIEW_ONLY === "true") {
+      console.log(`gen ${infographicId} OVERVIEW_ONLY=true → skipping fan-out`);
+    } else {
+      fanOutSectionsAndInfobox({
+        wikiUrl,
+        lang,
+        summary,
+        categoryKey,
+        style,
+        batchId: infographicId,
+      }).catch((err) =>
+        console.warn(`fan-out failed for ${wikiUrl}:`, err),
+      );
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`gen ${infographicId} failed:`, msg);
@@ -453,9 +463,23 @@ const server = Bun.serve({
 
     if (req.method === "GET" && path === "/gallery") {
       try {
-        const rows = queries.galleryDone.all(120);
-        const results: InfographicView[] = rows.map(viewInfographic);
+        const rows = queries.galleryDone.all(500);
+        const results: InfographicView[] = rows.map((r) => ({
+          ...viewInfographic(r),
+          view_count: (r as any).view_count ?? 0,
+        }));
         return Response.json({ results });
+      } catch (err) {
+        return jsonError(err);
+      }
+    }
+
+    if (req.method === "POST" && path === "/view") {
+      try {
+        const body = (await req.json()) as { url: string };
+        const { canonical } = parseWikipediaUrl(body.url);
+        queries.incrementView.run(canonical, canonical, Date.now());
+        return Response.json({ ok: true });
       } catch (err) {
         return jsonError(err);
       }
