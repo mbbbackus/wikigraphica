@@ -62,6 +62,7 @@ if (!colNames.has("page_id")) db.exec("alter table infographics add column page_
 if (!colNames.has("section_id")) db.exec("alter table infographics add column section_id text");
 if (!colNames.has("kind")) db.exec("alter table infographics add column kind text");
 if (!colNames.has("batch_id")) db.exec("alter table infographics add column batch_id text");
+if (!colNames.has("tags")) db.exec("alter table infographics add column tags text");
 db.exec("create index if not exists infographics_batch_idx on infographics(batch_id)");
 
 export type Infographic = {
@@ -85,6 +86,7 @@ export type Infographic = {
   section_id: string | null;
   kind: string | null;
   batch_id: string | null;
+  tags: string | null;
 };
 
 export type WikiPage = {
@@ -200,6 +202,12 @@ export const queries = {
   ),
   byUrl: db.prepare<Infographic, [string, number]>(
     "select * from infographics where wiki_url = ? order by created_at desc limit ?",
+  ),
+  getCompletedInfographics: db.prepare<unknown, []>(
+    "select * from infographics where status = 'completed' order by created_at desc",
+  ),
+  updateInfographicTags: db.prepare<unknown, [string | null, string]>(
+    "update infographics set tags = ? where id = ?",
   ),
 };
 
