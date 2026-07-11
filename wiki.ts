@@ -31,14 +31,23 @@ export function parseWikipediaUrl(input: string): {
   return { lang, title, canonical };
 }
 
+const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
+const MAX_FETCH_ATTEMPTS = 3;
+
 export async function fetchWikiSummary(lang: string, title: string): Promise<WikiSummary> {
   const encoded = encodeURIComponent(title.replace(/ /g, "_"));
-  const res = await fetch(
-    `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encoded}`,
-    { headers: { "User-Agent": "wikigraphica/0.1 (local dev)" } },
-  );
-  if (!res.ok) throw new Error(`Wikipedia summary fetch failed: ${res.status}`);
-  return (await res.json()) as WikiSummary;
+  const url = `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encoded}`;
+  let lastStatus = 0;
+  for (let attempt = 1; attempt <= MAX_FETCH_ATTEMPTS; attempt++) {
+    const res = await fetch(url, {
+      headers: { "User-Agent": "wikigraphica/0.1 (local dev)" },
+    });
+    if (res.ok) return (await res.json()) as WikiSummary;
+    lastStatus = res.status;
+    if (!RETRYABLE_STATUSES.has(res.status) || attempt === MAX_FETCH_ATTEMPTS) break;
+    await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** (attempt - 1)));
+  }
+  throw new Error(`Wikipedia summary fetch failed: ${lastStatus}`);
 }
 
 const DEFAULT_STYLE =
